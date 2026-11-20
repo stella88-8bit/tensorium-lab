@@ -1,0 +1,482 @@
+{
+  "lessons": [
+    {
+      "title": "От скрипта к проекту",
+      "body": [
+        "Терминал запускает программу в текущей рабочей папке. Команда pwd показывает её путь, ls — содержимое, cd меняет каталог. Если данные лежат рядом со скриптом, относительный путь зависит от того, откуда вызвали python. Явный аргумент командной строки делает этот выбор понятным пользователю.",
+        "Каталог .venv изолирует версии библиотек данного проекта. После создания среды устанавливайте зависимости через её интерпретатор. Выносите функции в модули, а вызов командного интерфейса помещайте под проверку __name__ == '__main__'. Тогда импорт из тестов не запустит обработку файлов сам по себе."
+      ],
+      "example": "# Команды для Linux и macOS\npython3 -m venv .venv\n. .venv/bin/activate\npython -m pip install -r requirements.txt\npython -m orders.validate data/orders.csv"
+    },
+    {
+      "title": "CSV, JSON и контракт данных",
+      "body": [
+        "В CSV запятая внутри названия кафе может быть частью заключённого в кавычки поля. Метод split(',') примет её за границу столбца. Модуль csv реализует правила формата. DictReader использует заголовок как имена полей, при этом значения остаются строками.",
+        "Файл лучше открывать через with с явной кодировкой UTF-8. Для csv дополнительно передайте newline=''. После чтения проверяйте обязательные поля и преобразуйте типы. json.loads() уже различает числа, строки, массивы и null; JSON-значение null превращается в None."
+      ],
+      "example": "import csv\nfrom io import StringIO\n\ntext = 'zone,minutes\\n\"Юг, склад\",12\\n'\nrow = next(csv.DictReader(StringIO(text)))\nprint(row['zone'], int(row['minutes']))"
+    },
+    {
+      "title": "Итерация, типы и ошибки",
+      "body": [
+        "Список хранит все элементы, а генератор выдаёт следующий элемент по запросу. Это позволяет последовательно проверять строки большого файла. Вторая попытка обхода уже исчерпанного генератора не даст записей. Если требуется несколько проходов, сохраните данные или откройте источник заново.",
+        "dataclass подходит для короткой записи с явными полями, например Parcel(order_id, weight). Аннотации помогают редактору и читателю, но обычный Python не проверяет их автоматически. Для отрицательного веса сформулируйте явную проверку. Перехватывайте ожидаемый тип исключения в узком месте преобразования."
+      ],
+      "example": "from dataclasses import dataclass\n\n@dataclass\nclass Parcel:\n    order_id: str\n    weight: float\n\ndef valid_parcels(rows):\n    for row in rows:\n        if row.weight >= 0:\n            yield row"
+    },
+    {
+      "title": "Тесты проверяют договорённость",
+      "body": [
+        "Для внешней функции важны вход, выход и ожидаемые ошибки. Начните с обычного случая, пустого ввода и границы. Чистые функции удобно тестировать в памяти. Для файлов pytest предоставляет временный каталог tmp_path, для повторяющихся случаев — параметризацию.",
+        "Если по спецификации отрицательное значение недопустимо, проверьте конкретный тип исключения. Удачное имя теста объясняет, почему пример имеет значение. В производственном журнале фиксируйте тип ошибки, номер строки и идентификатор операции. Секреты доступа и личные данные исключайте из сообщений."
+      ],
+      "example": "import pytest\n\n@pytest.mark.parametrize(('text', 'value'), [('0', 0), ('12', 12)])\ndef test_minutes(text, value):\n    assert int(text) == value\n\ndef test_bad_number():\n    with pytest.raises(ValueError):\n        int('пять')"
+    },
+    {
+      "title": "История проекта и повторяемый запуск",
+      "body": [
+        "git status показывает состояние рабочего дерева и индекса. git diff показывает ещё не добавленные изменения, git diff --staged — изменения, подготовленные для следующего коммита. git add выбирает содержимое будущего снимка, git commit фиксирует его в истории.",
+        "В README опишите версию Python, установку зависимостей, команду запуска и пример входа. Ветка позволяет менять обработчик независимо, а pull request связывает обсуждение с конкретными изменениями. При конфликте merge сначала определите смысл правок обеих сторон, соберите корректный вариант и повторите тесты."
+      ],
+      "example": "git switch -c feature/csv-report\ngit status\ngit diff\ngit add orders/report.py\ngit diff --staged\ngit commit -m 'Validate order duration'"
+    },
+    {
+      "title": "Командная строка и HTTP-ответ",
+      "body": [
+        "argparse переводит текстовые аргументы терминала в параметры с известными типами и значениями по умолчанию. Выделите функцию разбора, принимающую список строк. Тогда можно проверить настройки без запуска отдельного процесса.",
+        "При обработке HTTP-ответа учитывайте статус до разбора полезных данных. Успешный ответ иногда содержит пустое тело. Заранее подготовленная пара (status, body) позволяет протестировать такую ситуацию без сети. При поиске ID в длинном потоке выгодно один раз построить множество разрешённых ID вместо полного просмотра списка на каждом шаге."
+      ],
+      "example": "import argparse\n\nparser = argparse.ArgumentParser()\nparser.add_argument('--limit', type=int, default=10)\nsettings = parser.parse_args(['--limit', '3'])\nprint(settings.limit)"
+    }
+  ],
+  "tasks": [
+    {
+      "type": "code",
+      "title": "Имя файла из пути",
+      "prompt": "file_name(path) получает путь в формате POSIX и возвращает последнее имя файла. Пути всегда указывают на файл.",
+      "starter": "def file_name(path):\n    # Ваше решение\n    pass",
+      "hint": "PurePosixPath подходит для работы со строкой пути без чтения диска.",
+      "solution": "def file_name(path):\n    from pathlib import PurePosixPath\n    return PurePosixPath(path).name",
+      "tests": [
+        {
+          "label": "Вложенный каталог",
+          "assert": "assert file_name('/data/2026/events.csv') == 'events.csv'"
+        },
+        {
+          "label": "Относительный путь",
+          "assert": "assert file_name('orders.json') == 'orders.json'"
+        }
+      ]
+    },
+    {
+      "type": "choice",
+      "title": "Откуда читается CSV",
+      "prompt": "В терминале открыт каталог /work. Команда python app/train.py открывает 'data/orders.csv' без изменения текущего каталога. Какой путь попробует открыть Python?",
+      "options": [
+        "/work/app/data/orders.csv",
+        "/work/data/orders.csv",
+        "/data/orders.csv"
+      ],
+      "answer": 1,
+      "explanation": "Относительный путь разрешается относительно текущего рабочего каталога процесса."
+    },
+    {
+      "type": "choice",
+      "title": "Версии библиотек разошлись",
+      "prompt": "У двух разработчиков разные главные версии pandas. Какая запись поможет возобновить одинаковый эксперимент на той же платформе?",
+      "options": [
+        "Только имя pandas в README",
+        "Скопированный скриншот pip list",
+        "Зафиксированные версии зависимостей, версия Python и инструкция их установки"
+      ],
+      "answer": 2,
+      "explanation": "Окружение можно восстановить по версии интерпретатора и зафиксированному набору зависимостей, включая транзитивные."
+    },
+    {
+      "type": "code",
+      "title": "Прочитать тело JSON",
+      "prompt": "order_id_from_json(text) принимает корректный JSON-объект с ключом id. Верните значение этого ключа, сохранив его тип.",
+      "starter": "def order_id_from_json(text):\n    # Ваше решение\n    pass",
+      "hint": "json.loads преобразует JSON-строку в Python-объект.",
+      "solution": "def order_id_from_json(text):\n    import json\n    return json.loads(text)['id']",
+      "tests": [
+        {
+          "label": "Числовой ключ",
+          "assert": "assert order_id_from_json('{\"id\": 12}') == 12"
+        },
+        {
+          "label": "Текстовый ключ",
+          "assert": "assert order_id_from_json('{\"id\": \"007\"}') == '007'"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Поле с запятой",
+      "prompt": "csv_names(text) возвращает значения столбца name по порядку. CSV содержит заголовок name,minutes и может включать запятые в кавычках.",
+      "starter": "def csv_names(text):\n    # Ваше решение\n    pass",
+      "hint": "Оберните строку в io.StringIO и используйте csv.DictReader.",
+      "solution": "def csv_names(text):\n    import csv\n    from io import StringIO\n    return [row['name'] for row in csv.DictReader(StringIO(text))]",
+      "tests": [
+        {
+          "label": "Название с запятой",
+          "assert": "assert csv_names('name,minutes\\n\"Кафе, центр\",12\\nЮг,6\\n') == ['Кафе, центр','Юг']"
+        },
+        {
+          "label": "Только заголовок",
+          "assert": "assert csv_names('name,minutes\\n') == []"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Строка с заголовками",
+      "prompt": "headers(text) принимает строку заголовков с разделителем ';'. В начале может быть символ BOM (U+FEFF). Верните очищенный список названий колонок без крайних пробелов. Кавычек во входе нет.",
+      "starter": "def headers(text):\n    # Ваше решение\n    pass",
+      "hint": "Снимите начальный BOM методом removeprefix и очистите каждую часть.",
+      "solution": "def headers(text):\n    return [part.strip() for part in text.removeprefix('\\ufeff').split(';')]",
+      "tests": [
+        {
+          "label": "BOM присутствует",
+          "assert": "assert headers('\\ufeff id ; zone ') == ['id','zone']"
+        },
+        {
+          "label": "Без BOM",
+          "assert": "assert headers('minutes;price') == ['minutes','price']"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Поток валидных ID",
+      "prompt": "nonempty_ids(values) должен выдавать непустые строковые ID из входного итерируемого объекта. Уберите крайние пробелы. Верните однопроходный итератор.",
+      "starter": "def nonempty_ids(values):\n    # Ваше решение\n    pass",
+      "hint": "Используйте yield внутри цикла или выражение-генератор.",
+      "solution": "def nonempty_ids(values):\n    for value in values:\n        cleaned = value.strip()\n        if cleaned:\n            yield cleaned",
+      "tests": [
+        {
+          "label": "Однопроходность",
+          "assert": "g = nonempty_ids(['a']); assert iter(g) is g and list(g) == ['a'] and list(g) == []"
+        },
+        {
+          "label": "Пустые и пробельные",
+          "assert": "assert list(nonempty_ids(iter([' A','', '  ','B ']))) == ['A','B']"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Проверить длительность",
+      "prompt": "parse_minutes(s) получает строку с целым числом минут. Уберите пробелы, верните число. Для отрицательного значения или некорректной строки вызовите ValueError.",
+      "starter": "def parse_minutes(s):\n    # Ваше решение\n    pass",
+      "hint": "int() уже отклоняет строку, которая не задаёт целое число.",
+      "solution": "def parse_minutes(s):\n    n = int(s.strip())\n    if n < 0:\n        raise ValueError('Время должно быть неотрицательным')\n    return n",
+      "tests": [
+        {
+          "label": "Допустимые числа",
+          "assert": "assert parse_minutes(' 0 ') == 0 and parse_minutes('32') == 32"
+        },
+        {
+          "label": "Два вида ошибок",
+          "assert": "for text in ['-3', 'abc']:\n    try:\n        parse_minutes(text)\n    except ValueError:\n        continue\n    raise AssertionError('Ожидается ValueError')"
+        }
+      ]
+    },
+    {
+      "type": "choice",
+      "title": "Побочный эффект при импорте",
+      "prompt": "Тест импортирует функцию validate из модуля, который сразу пытается прочитать аргументы терминала. Как лучше организовать точку входа?",
+      "options": [
+        "Перенести чтение аргументов в main() и вызывать её под if __name__ == '__main__'",
+        "Оборачивать каждый импорт в try/except Exception",
+        "Добавить при импорте фиктивный аргумент"
+      ],
+      "answer": 0,
+      "explanation": "Защитное условие позволяет использовать функции модуля независимо от командного интерфейса."
+    },
+    {
+      "type": "code",
+      "title": "Запись о посылке",
+      "prompt": "Создайте dataclass Parcel с полями order_id (str) и grams (int). Поля задаёт вызывающий код. Две записи с одинаковыми значениями должны сравниваться равными.",
+      "starter": "from dataclasses import dataclass\n\n# Определите Parcel",
+      "hint": "Добавьте @dataclass над классом и аннотируйте оба поля.",
+      "solution": "from dataclasses import dataclass\n\n@dataclass\nclass Parcel:\n    order_id: str\n    grams: int",
+      "tests": [
+        {
+          "label": "Позиционные аргументы",
+          "assert": "p = Parcel('B', 80); assert p.order_id == 'B' and p.grams == 80"
+        },
+        {
+          "label": "Сравнение записей",
+          "assert": "from dataclasses import is_dataclass\nassert is_dataclass(Parcel) and Parcel('A', 5) == Parcel(order_id='A', grams=5)"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Аргумент --limit",
+      "prompt": "read_limit(args) получает список аргументов, например ['--limit','7']. Постройте парсер argparse для необязательного целочисленного параметра --limit с умолчанием 10. Верните его значение.",
+      "starter": "def read_limit(args):\n    # Ваше решение\n    pass",
+      "hint": "Передайте список прямо в parse_args(args).",
+      "solution": "def read_limit(args):\n    import argparse\n    parser = argparse.ArgumentParser()\n    parser.add_argument('--limit', type=int, default=10)\n    return parser.parse_args(args).limit",
+      "tests": [
+        {
+          "label": "Параметр задан",
+          "assert": "assert read_limit(['--limit','7']) == 7"
+        },
+        {
+          "label": "Параметр опущен",
+          "assert": "assert read_limit([]) == 10"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Разобрать ответ сервиса",
+      "prompt": "extract_rows(status, body) работает с ответами подготовленного сервиса. При статусе 200 верните массив rows из корректного JSON. При 204 верните []. Для любого другого статуса вызовите ValueError.",
+      "starter": "def extract_rows(status, body):\n    # Ваше решение\n    pass",
+      "hint": "Сначала проверьте статус. В ответе 204 тело пусто.",
+      "solution": "def extract_rows(status, body):\n    import json\n    if status == 204:\n        return []\n    if status != 200:\n        raise ValueError('Статус сервиса')\n    return json.loads(body)['rows']",
+      "tests": [
+        {
+          "label": "Успешный ответ",
+          "assert": "assert extract_rows(200, '{\"rows\":[1,2]}') == [1,2]"
+        },
+        {
+          "label": "Нет содержимого",
+          "assert": "assert extract_rows(204, '') == []"
+        },
+        {
+          "label": "Ошибка сервиса",
+          "assert": "try:\n    extract_rows(500, '')\nexcept ValueError:\n    pass\nelse:\n    raise AssertionError('Ожидается ValueError')"
+        }
+      ]
+    },
+    {
+      "type": "choice",
+      "title": "Дорогая проверка",
+      "prompt": "Для каждой из миллиона записей код перебирает список из 5000 известных ID. Все ID — строки, список в процессе не меняется. Как сократить число сравнений?",
+      "options": [
+        "Один раз построить set известных ID и проверять принадлежность в нём",
+        "Создавать новый set известных ID для каждой строки",
+        "Сортировать весь поток перед каждой проверкой"
+      ],
+      "answer": 0,
+      "explanation": "Однократная подготовка множества позволяет в среднем проверять принадлежность за постоянное время."
+    },
+    {
+      "type": "code",
+      "title": "Первые отсутствующие ID",
+      "prompt": "missing_ids(expected, received) возвращает список отсутствующих ID в порядке первого появления в expected. Повторы в expected и received допустимы.",
+      "starter": "def missing_ids(expected, received):\n    # Ваше решение\n    pass",
+      "hint": "Множество полученных и уже выданных ID позволяет обработать входы за один обход.",
+      "solution": "def missing_ids(expected, received):\n    known = set(received)\n    missing = []\n    for key in expected:\n        if key not in known:\n            known.add(key)\n            missing.append(key)\n    return missing",
+      "tests": [
+        {
+          "label": "Порядок и повторы",
+          "assert": "assert missing_ids(['b','a','c','a'], ['c']) == ['b','a']"
+        },
+        {
+          "label": "Полная поставка",
+          "assert": "assert missing_ids(['x','x'], ['x','x']) == []"
+        }
+      ]
+    },
+    {
+      "type": "choice",
+      "title": "Временный каталог теста",
+      "prompt": "Каждый тест записывает report.json. При параллельном запуске тесты мешают друг другу. Как исправить изоляцию?",
+      "options": [
+        "Добавить задержку в каждый тест",
+        "Использовать одинаковый глобальный файл в домашнем каталоге",
+        "Выдавать тесту собственный временный каталог через tmp_path"
+      ],
+      "answer": 2,
+      "explanation": "pytest создаёт отдельный временный путь для каждого запуска тестовой функции."
+    },
+    {
+      "type": "choice",
+      "title": "Что попадёт в коммит",
+      "prompt": "В calc.py внесли две правки. После первой выполнили git add calc.py, после второй ничего не добавляли. Какая команда покажет подготовленную к коммиту правку?",
+      "options": [
+        "git diff --staged",
+        "git log --oneline",
+        "git status --short"
+      ],
+      "answer": 0,
+      "explanation": "git diff --staged сравнивает индекс с последним коммитом."
+    },
+    {
+      "type": "choice",
+      "title": "Файл случайно отслеживается",
+      "prompt": "Вы заметили локальную .venv до первого git add. Как сохранить каталог на диске и избежать его добавления обычной командой git add .?",
+      "options": [
+        "Записать .venv/ в .gitignore",
+        "Сделать .venv текущим каталогом",
+        "Создать ещё одну ветку"
+      ],
+      "answer": 0,
+      "explanation": ".gitignore исключает совпадающие неотслеживаемые пути из обычного добавления."
+    },
+    {
+      "type": "choice",
+      "title": "Результат слияния",
+      "prompt": "В конфликте веток один разработчик исправил валидацию, а другой добавил новую колонку. Как подготовить итоговую версию?",
+      "options": [
+        "Удалить файл целиком и завершить merge",
+        "Согласовать оба изменения, удалить маркеры конфликта, проверить и добавить результат",
+        "Выбрать более позднюю строку по времени изменения файла"
+      ],
+      "answer": 1,
+      "explanation": "Git сообщает о конфликте текста. Корректность объединённой логики определяют требования и тесты."
+    },
+    {
+      "type": "code",
+      "title": "Детерминированный отчёт",
+      "prompt": "report_lines(counts) получает словарь {зона: количество}. Верните строки вида 'зона=число', упорядоченные по возрастанию названия зоны.",
+      "starter": "def report_lines(counts):\n    # Ваше решение\n    pass",
+      "hint": "Итерируйтесь по sorted(counts).",
+      "solution": "def report_lines(counts):\n    return [f'{key}={counts[key]}' for key in sorted(counts)]",
+      "tests": [
+        {
+          "label": "Порядок зон",
+          "assert": "assert report_lines({'B':2,'A':9}) == ['A=9','B=2']"
+        },
+        {
+          "label": "Пустой отчёт",
+          "assert": "assert report_lines({}) == []"
+        }
+      ]
+    },
+    {
+      "type": "choice",
+      "title": "Диагностика для журнала",
+      "prompt": "Парсер отклонил строку 17 с телефонным номером и адресом получателя. Какого сообщения достаточно для расследования формата?",
+      "options": [
+        "Полная строка с адресом и телефоном",
+        "Токен доступа сервиса и сырое тело",
+        "Номер строки, имя поля, код ошибки формата и идентификатор обработки"
+      ],
+      "answer": 2,
+      "explanation": "По идентификатору и номеру строки можно сопоставить ошибку с разрешённым источником. Личные данные останутся вне журнала."
+    },
+    {
+      "type": "code",
+      "title": "Номера ошибочных записей",
+      "prompt": "error_rows(lines) получает строки, каждая должна содержать JSON-объект с непустым строковым id. Верните номера всех ошибочных строк начиная с 1. Другие поля допустимы.",
+      "starter": "def error_rows(lines):\n    # Ваше решение\n    pass",
+      "hint": "Поймайте JSONDecodeError отдельно, затем проверьте тип объекта и значение id.",
+      "solution": "def error_rows(lines):\n    import json\n    errors = []\n    for i, line in enumerate(lines, 1):\n        try:\n            item = json.loads(line)\n        except json.JSONDecodeError:\n            errors.append(i)\n            continue\n        if not isinstance(item, dict) or not isinstance(item.get('id'), str) or not item['id'].strip():\n            errors.append(i)\n    return errors",
+      "tests": [
+        {
+          "label": "Синтаксис и схема",
+          "assert": "assert error_rows(['{\"id\":\"a\"}', '{', '[]','{\"id\":1}', '{\"id\":\"  \"}']) == [2,3,4,5]"
+        },
+        {
+          "label": "Пустой файл",
+          "assert": "assert error_rows([]) == []"
+        }
+      ]
+    },
+    {
+      "type": "choice",
+      "title": "Граничный случай валидатора",
+      "prompt": "По контракту допустимы целые длительности от 0 до 240 включительно. Какой набор целится в обе границы диапазона?",
+      "options": [
+        "[12, 33, 78]",
+        "[-1, 0, 240, 241]",
+        "[100, 110, 120]"
+      ],
+      "answer": 1,
+      "explanation": "Два граничных значения и ближайшие недопустимые хорошо выделяют ошибки знаков сравнения."
+    },
+    {
+      "type": "code",
+      "title": "Чтение блоками",
+      "prompt": "chunks(values, size) выдаёт списки по size элементов, сохраняя последний неполный блок. size положителен. Вход может быть однопроходным итератором.",
+      "starter": "def chunks(values, size):\n    # Ваше решение\n    pass",
+      "hint": "Копите текущий блок, выдавайте его через yield и начинайте новый.",
+      "solution": "def chunks(values, size):\n    group = []\n    for item in values:\n        group.append(item)\n        if len(group) == size:\n            yield group\n            group = []\n    if group:\n        yield group",
+      "tests": [
+        {
+          "label": "Неполный блок",
+          "assert": "assert list(chunks(iter([1,2,3,4,5]), 2)) == [[1,2],[3,4],[5]]"
+        },
+        {
+          "label": "Точное деление и пустой вход",
+          "assert": "assert list(chunks([1,2],1)) == [[1],[2]] and list(chunks([],3)) == []"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Сквозная проверка CSV",
+      "prompt": "audit_csv(text) получает CSV с заголовком id,minutes. Синтаксис CSV корректен. Верните (принято, отклонено). Принимайте строку с непустым после strip() id и целыми minutes ≥0. При ошибке продолжайте обработку.",
+      "starter": "def audit_csv(text):\n    # Ваше решение\n    pass",
+      "hint": "DictReader разбирает записи, int проверяет целое число. Счётчики обновляются ровно один раз на запись.",
+      "solution": "def audit_csv(text):\n    import csv\n    from io import StringIO\n    ok = bad = 0\n    for row in csv.DictReader(StringIO(text)):\n        try:\n            minutes = int(row['minutes'])\n        except (TypeError, ValueError):\n            bad += 1\n            continue\n        if row['id'].strip() and minutes >= 0:\n            ok += 1\n        else:\n            bad += 1\n    return ok, bad",
+      "tests": [
+        {
+          "label": "Смешанный файл",
+          "assert": "assert audit_csv('id,minutes\\na,0\\n ,8\\nb,-2\\nc,bad\\nd,3\\n') == (2,3)"
+        },
+        {
+          "label": "Заголовок без записей",
+          "assert": "assert audit_csv('id,minutes\\n') == (0,0)"
+        }
+      ]
+    }
+  ],
+  "quiz": [
+    {
+      "prompt": "Для чего нужен with open(...) as f?",
+      "options": [
+        "Для автоматической сортировки строк",
+        "Для закрытия файла при выходе из блока",
+        "Для удаления файла после чтения"
+      ],
+      "answer": 1,
+      "explanation": "Контекстный менеджер завершает работу с файлом даже при исключении."
+    },
+    {
+      "prompt": "Что делает yield при достижении этой строки?",
+      "options": [
+        "Возвращает значение потребителю и приостанавливает генератор",
+        "Перезапускает функцию с начала",
+        "Добавляет объект в общий список"
+      ],
+      "answer": 0,
+      "explanation": "Следующее обращение к генератору продолжит выполнение с сохранённого места."
+    },
+    {
+      "prompt": "Чем полезен `git diff` без флагов до git add?",
+      "options": [
+        "Покажет историю всех веток",
+        "Сравнит два тега",
+        "Покажет изменения рабочего дерева относительно индекса"
+      ],
+      "answer": 2,
+      "explanation": "Так можно просмотреть неподготовленные правки."
+    },
+    {
+      "prompt": "Какой API-ответ можно обработать без JSON-декодирования тела?",
+      "options": [
+        "200 с JSON-массивом",
+        "204 No Content",
+        "201 с JSON-объектом нового ресурса"
+      ],
+      "answer": 1,
+      "explanation": "HTTP 204 означает отсутствие содержимого."
+    },
+    {
+      "prompt": "Как тестировать ошибочный вес после реализации контракта ValueError?",
+      "options": [
+        "Проверять только положительные примеры",
+        "Печатать текст и смотреть глазами",
+        "Проверить, что вызов с отрицательным весом вызывает ValueError"
+      ],
+      "answer": 2,
+      "explanation": "Так тест закрепляет точное наблюдаемое поведение при ошибке."
+    }
+  ]
+}

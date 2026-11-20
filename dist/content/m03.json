@@ -1,0 +1,472 @@
+{
+  "lessons": [
+    {
+      "title": "Массив хранит форму и тип",
+      "body": [
+        "В таблице из трёх заказов и двух признаков NumPy хранит форму (3, 2). Первая ось соответствует строкам, вторая — столбцам. Атрибут dtype задаёт тип элементов, например целые int64 или вещественные float32. Средние обычно требуют вещественного результата.",
+        "Выражение x.mean(axis=0) сворачивает строки и даёт по среднему на каждый признак. Чтобы вычесть эти средние из каждой строки, NumPy распространяет вектор формы (2,) по первой оси. Так работает broadcasting. Совместимость сравнивают с правых размерностей: они должны совпасть или одна из них должна быть равна 1."
+      ],
+      "example": "import numpy as np\n\nx = np.array([[2, 8], [4, 10], [6, 12]], dtype=float)\nmeans = x.mean(axis=0)\nprint(x.shape, means)  # (3, 2), [4. 10.]\nprint(x - means)"
+    },
+    {
+      "title": "Очистка таблицы с pandas",
+      "body": [
+        "Series представляет один подписанный столбец, DataFrame — таблицу с подписанными строками и колонками. loc выбирает по меткам или булевой маске, iloc — по порядковым позициям. После фильтрации индекс может иметь пропуски, поэтому rows.loc[0] и rows.iloc[0] иногда обращаются к разным строкам.",
+        "При чтении числового поля из CSV отдельно учитывайте отсутствующее значение и записанный ноль. pd.to_numeric(errors='coerce') преобразует некорректный текст в пропуск. Посчитайте долю таких строк до заполнения. При обработке дат приводите известные смещения к единой зоне и документируйте часовой пояс для исходных строк без смещения."
+      ],
+      "example": "import pandas as pd\n\norders = pd.DataFrame({'id': ['A', 'B', 'C'], 'minutes': ['12', '?', '0']})\nminutes = pd.to_numeric(orders['minutes'], errors='coerce')\nprint(orders.loc[minutes.notna(), 'id'].tolist())  # ['A', 'C']"
+    },
+    {
+      "title": "Группировка и соединение без дублей",
+      "body": [
+        "groupby делит строки на группы и применяет функцию агрегирования к каждой. У count() учитываются непустые значения выбранного столбца, у size() — все строки группы. До расчёта показателя определите, что образует наблюдение: один заказ или одну позицию заказа.",
+        "Для соединения заказов со справочником зон каждому ключу зоны должна соответствовать максимум одна строка справочника. При двух совпадениях JOIN удвоит заказ. В pandas аргумент validate='many_to_one' проверяет это условие. При left-join сравните число заказов и сумму до и после операции."
+      ],
+      "example": "import pandas as pd\n\norders = pd.DataFrame({'id': [1, 2], 'zone': ['W', 'W'], 'fee': [20, 35]})\nzones = pd.DataFrame({'zone': ['W'], 'name': ['Запад']})\nwide = orders.merge(zones, on='zone', how='left', validate='many_to_one')\nprint(wide.groupby('name')['fee'].sum())"
+    },
+    {
+      "title": "SQL для отчётов",
+      "body": [
+        "WHERE фильтрует исходные строки, GROUP BY задаёт группы, HAVING проверяет уже полученные агрегаты. NULL обозначает неизвестное значение и требует проверки IS NULL. AVG и COUNT(column) пропускают NULL, а COUNT(*) считает строки.",
+        "Оконные функции сохраняют исходные строки и добавляют статистику по связанному набору. ROW_NUMBER() OVER (PARTITION BY zone ORDER BY minutes, id) нумерует заказы внутри каждой зоны. Вторичный ключ id делает выбор первой строки определённым при равных длительностях. Сложный отчёт можно разбить на именованные шаги через WITH."
+      ],
+      "example": "WITH ranked AS (\n  SELECT id, zone, minutes,\n         ROW_NUMBER() OVER (PARTITION BY zone ORDER BY minutes, id) AS pos\n  FROM orders WHERE minutes IS NOT NULL\n)\nSELECT id, zone, minutes FROM ranked\nWHERE pos = 1 ORDER BY zone;"
+    },
+    {
+      "title": "Разведочный анализ и графики",
+      "body": [
+        "Гистограмма показывает распределение одной числовой величины. Коробчатая диаграмма сравнивает распределения по группам, а диаграмма рассеяния показывает связь двух признаков. Подписывайте оси и единицы. Для длительностей с редкими экстремумами полезно сопоставлять среднее и медиану.",
+        "У двух зон могут совпасть средние и различаться доли очень долгих заказов. Перед выводом проверьте размеры групп, 90-й процентиль и число пропусков. Корреляция расстояния и цены сама по себе не позволяет заключить, что изменение только расстояния вызвало изменение цены."
+      ],
+      "example": "import matplotlib.pyplot as plt\nimport seaborn as sns\n\nsns.boxplot(data=orders, x='zone', y='minutes')\nplt.xlabel('Зона')\nplt.ylabel('Длительность, мин')\nplt.tight_layout()"
+    },
+    {
+      "title": "Повторяемый анализ и происхождение данных",
+      "body": [
+        "Состояние ядра Jupyter может пережить удаление ячейки. Если результат появился только после ручного запуска ячеек в особом порядке, коллега получит другой ответ. Команда Restart & Run All проверяет, что исходные файлы и ячейки достаточны для повторения.",
+        "Карточка набора данных фиксирует источник и разрешение на использование, единицу строки, период сбора, схему, ключи, кодировку и известные ограничения. До обучения проверьте уникальность первичного ключа и пропуски в обязательных полях. Отчёт, пригодный для передачи, содержит агрегаты по достаточным группам и сохраняет приватность отдельных заказов."
+      ],
+      "example": "checks = {\n    'unique_id': orders['id'].is_unique,\n    'known_zone': orders['zone'].notna().all(),\n}\nprint(checks)"
+    }
+  ],
+  "tasks": [
+    {
+      "type": "choice",
+      "title": "Форма пачки заказов",
+      "prompt": "У массива x.shape == (120, 4). Каждый заказ описывают четырьмя числами. Какова форма x.mean(axis=0)?",
+      "options": [
+        "(120,)",
+        "(4,)",
+        "(120, 1)"
+      ],
+      "answer": 1,
+      "explanation": "Среднее по оси 0 объединяет 120 наблюдений и оставляет четыре признака."
+    },
+    {
+      "type": "code",
+      "title": "Среднее по столбцу",
+      "prompt": "column_means(rows) принимает прямоугольный непустой список числовых строк. Верните список средних по столбцам. У матрицы может быть ноль столбцов.",
+      "starter": "def column_means(rows):\n    # Ваше решение\n    pass",
+      "hint": "zip(*rows) собирает значения одного столбца в кортеж.",
+      "solution": "def column_means(rows):\n    return [sum(col) / len(col) for col in zip(*rows)]",
+      "tests": [
+        {
+          "label": "Два разных масштаба",
+          "assert": "assert column_means([[2,8],[4,10],[6,12]]) == [4,10]"
+        },
+        {
+          "label": "Пустые строки",
+          "assert": "assert column_means([[],[]]) == []"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Вектор смещений",
+      "prompt": "add_offsets(rows, offsets) прибавляет к каждому столбцу свой offset и возвращает новый список строк. Длины согласованы. Входные данные должны сохраняться.",
+      "starter": "def add_offsets(rows, offsets):\n    # Ваше решение\n    pass",
+      "hint": "Одни и те же offsets применяются к каждой строке.",
+      "solution": "def add_offsets(rows, offsets):\n    return [[v + shift for v, shift in zip(row, offsets)] for row in rows]",
+      "tests": [
+        {
+          "label": "Два признака",
+          "assert": "assert add_offsets([[1,2],[3,4]],[10,-2]) == [[11,0],[13,2]]"
+        },
+        {
+          "label": "Исходная матрица",
+          "assert": "r = [[5]]; assert add_offsets(r, [1]) == [[6]] and r == [[5]]"
+        }
+      ]
+    },
+    {
+      "type": "choice",
+      "title": "Маска NumPy",
+      "prompt": "x = np.array([3, 0, 8, 2]). Что вернёт x[x > 2].tolist()?",
+      "options": [
+        "[3, 8]",
+        "[True, False, True, False]",
+        "[0, 2]"
+      ],
+      "answer": 0,
+      "explanation": "Выражение x > 2 создаёт булеву маску, а x[маска] выбирает сами элементы."
+    },
+    {
+      "type": "choice",
+      "title": "Позиция и метка",
+      "prompt": "В DataFrame осталось две строки с индексами 10 и 25. Как выбрать вторую строку по позиции?",
+      "options": [
+        "df.loc[1]",
+        "df.iloc[25]",
+        "df.iloc[1]"
+      ],
+      "answer": 2,
+      "explanation": "iloc нумерует строки с нуля внутри текущей таблицы."
+    },
+    {
+      "type": "code",
+      "title": "Найти пропуски",
+      "prompt": "missing_share(values) возвращает долю значений None. Для пустого списка верните None. Число 0 и пустая строка в этой задаче считаются известными значениями.",
+      "starter": "def missing_share(values):\n    # Ваше решение\n    pass",
+      "hint": "Число пропусков поделите на общее количество записей.",
+      "solution": "def missing_share(values):\n    if not values:\n        return None\n    return sum(v is None for v in values) / len(values)",
+      "tests": [
+        {
+          "label": "Разные типы",
+          "assert": "assert missing_share([0, '', None, None]) == 0.5"
+        },
+        {
+          "label": "Пустой набор",
+          "assert": "assert missing_share([]) is None"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Найти повторные ключи",
+      "prompt": "repeated_ids(ids) возвращает отсортированный список тех ID, которые встретились более одного раза. Включайте каждый повторяющийся ID ровно один раз, все ID — строки.",
+      "starter": "def repeated_ids(ids):\n    # Ваше решение\n    pass",
+      "hint": "Заведите отдельные множества увиденных и повторяющихся ключей.",
+      "solution": "def repeated_ids(ids):\n    seen = set()\n    repeated = set()\n    for key in ids:\n        if key in seen:\n            repeated.add(key)\n        seen.add(key)\n    return sorted(repeated)",
+      "tests": [
+        {
+          "label": "Многократный повтор",
+          "assert": "assert repeated_ids(['z','x','z','a','a','z']) == ['a','z']"
+        },
+        {
+          "label": "Уникальные ключи",
+          "assert": "assert repeated_ids(['b','c']) == []"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Нормализовать дату",
+      "prompt": "utc_day(iso_time) получает ISO 8601 дату-время с явным числовым смещением, например '2026-01-02T00:30:00+05:00'. Верните дату в UTC в формате YYYY-MM-DD.",
+      "starter": "def utc_day(iso_time):\n    # Ваше решение\n    pass",
+      "hint": "Разберите строку с datetime.fromisoformat и смените зону через astimezone(timezone.utc).",
+      "solution": "def utc_day(iso_time):\n    from datetime import datetime, timezone\n    value = datetime.fromisoformat(iso_time)\n    return value.astimezone(timezone.utc).date().isoformat()",
+      "tests": [
+        {
+          "label": "Переход на прошлый день",
+          "assert": "assert utc_day('2026-01-02T00:30:00+05:00') == '2026-01-01'"
+        },
+        {
+          "label": "Переход на следующий день",
+          "assert": "assert utc_day('2026-05-30T23:30:00-03:00') == '2026-05-31'"
+        }
+      ]
+    },
+    {
+      "type": "choice",
+      "title": "Записать миллион числовых значений",
+      "prompt": "Набор содержит множество однотипных числовых столбцов и часто читается по двум из них. Какой формат специально предназначен для колонночного хранения?",
+      "options": [
+        "CSV",
+        "Parquet",
+        "Плоский JSON-массив строк"
+      ],
+      "answer": 1,
+      "explanation": "Parquet группирует значения по колонкам, хранит схему и поддерживает чтение выбранных столбцов."
+    },
+    {
+      "type": "code",
+      "title": "Счётчик по зоне",
+      "prompt": "zone_counts(rows) получает пары (zone, minutes), где minutes может быть None. Верните {zone: (число строк, число известных длительностей)}.",
+      "starter": "def zone_counts(rows):\n    # Ваше решение\n    pass",
+      "hint": "Обновляйте первый счётчик для любой записи, второй — только при известной длительности.",
+      "solution": "def zone_counts(rows):\n    out = {}\n    for zone, duration in rows:\n        total, known = out.get(zone, (0,0))\n        out[zone] = (total + 1, known + int(duration is not None))\n    return out",
+      "tests": [
+        {
+          "label": "Известный ноль и пропуск",
+          "assert": "assert zone_counts([('A',0),('A',None),('B',None)]) == {'A':(2,1),'B':(1,0)}"
+        },
+        {
+          "label": "Пустые данные",
+          "assert": "assert zone_counts([]) == {}"
+        }
+      ]
+    },
+    {
+      "type": "choice",
+      "title": "Как размножились заказы",
+      "prompt": "В orders три строки с zone='S'. В справочнике две строки с тем же ключом. Сколько строк с zone='S' появится после INNER JOIN по зоне?",
+      "options": [
+        "3",
+        "5",
+        "6"
+      ],
+      "answer": 2,
+      "explanation": "Каждая из трёх исходных строк соединится с обеими совпавшими строками справочника."
+    },
+    {
+      "type": "code",
+      "title": "Проверить справочник",
+      "prompt": "unique_lookup(pairs) принимает пары (ключ, значение) справочника. Верните словарь. Для повторяющегося ключа вызовите ValueError, даже когда значения совпадают.",
+      "starter": "def unique_lookup(pairs):\n    # Ваше решение\n    pass",
+      "hint": "Проверяйте ключ до его добавления в словарь.",
+      "solution": "def unique_lookup(pairs):\n    out = {}\n    for key, value in pairs:\n        if key in out:\n            raise ValueError('Повтор ключа')\n        out[key] = value\n    return out",
+      "tests": [
+        {
+          "label": "Корректная связь",
+          "assert": "assert unique_lookup([('s','Юг'),('n','Север')]) == {'s':'Юг','n':'Север'}"
+        },
+        {
+          "label": "Повтор одного значения",
+          "assert": "try:\n    unique_lookup([('s','Юг'),('s','Юг')])\nexcept ValueError:\n    pass\nelse:\n    raise AssertionError('Повтор должен быть замечен')"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Левое соединение",
+      "prompt": "label_orders(orders, names) принимает пары (id, zone) и словарь {zone: название}. Верните список пар (id, название). При отсутствии зоны используйте None и сохраните исходный порядок.",
+      "starter": "def label_orders(orders, names):\n    # Ваше решение\n    pass",
+      "hint": "Метод names.get(zone) вернёт None для отсутствующей зоны.",
+      "solution": "def label_orders(orders, names):\n    return [(key, names.get(zone)) for key, zone in orders]",
+      "tests": [
+        {
+          "label": "Зона отсутствует",
+          "assert": "assert label_orders([(2,'s'),(1,'n')], {'s':'Юг'}) == [(2,'Юг'),(1,None)]"
+        },
+        {
+          "label": "Повтор зоны",
+          "assert": "assert label_orders([(1,'x'),(3,'x')], {'x':'A'}) == [(1,'A'),(3,'A')]"
+        }
+      ]
+    },
+    {
+      "type": "choice",
+      "title": "Фильтр после агрегирования",
+      "prompt": "Нужны только зоны, где суммарная выручка выше 1000. Какой фрагмент добавить после GROUP BY zone?",
+      "options": [
+        "WHERE amount > 1000",
+        "HAVING SUM(amount) > 1000",
+        "LIMIT 1000"
+      ],
+      "answer": 1,
+      "explanation": "HAVING проверяет итоговую сумму каждой группы."
+    },
+    {
+      "type": "choice",
+      "title": "Счётчик SQL и NULL",
+      "prompt": "В столбце minutes значения NULL, 0, 19. Какие числа выдаст SELECT COUNT(*), COUNT(minutes) FROM orders?",
+      "options": [
+        "(3, 2)",
+        "(2, 2)",
+        "(3, 1)"
+      ],
+      "answer": 0,
+      "explanation": "COUNT(*) учитывает все строки, а COUNT(minutes) — только значения, отличные от NULL."
+    },
+    {
+      "type": "code",
+      "title": "Накопленная выручка",
+      "prompt": "running_amounts(rows) получает пары (zone, amount) в заданном хронологическом порядке. Верните список накопленных сумм соответствующей зоны для каждой строки.",
+      "starter": "def running_amounts(rows):\n    # Ваше решение\n    pass",
+      "hint": "Обновляйте сумму только той зоны, к которой относится текущая строка.",
+      "solution": "def running_amounts(rows):\n    totals = {}\n    out = []\n    for zone, amount in rows:\n        totals[zone] = totals.get(zone, 0) + amount\n        out.append(totals[zone])\n    return out",
+      "tests": [
+        {
+          "label": "Чередование зон",
+          "assert": "assert running_amounts([('A',2),('B',3),('A',5),('B',0)]) == [2,3,7,3]"
+        },
+        {
+          "label": "Возврат уменьшает выручку",
+          "assert": "assert running_amounts([('A',10),('A',-4)]) == [10,6]"
+        }
+      ]
+    },
+    {
+      "type": "choice",
+      "title": "Рейтинг без случайного выбора",
+      "prompt": "У двух курьеров одинаковые средние времена, оба подходят для первой строки отчёта. Что сделает порядок повторяемым?",
+      "options": [
+        "Добавить уникальный id вторым ключом ORDER BY",
+        "Удалить ORDER BY",
+        "Оставить только сортировку по времени"
+      ],
+      "answer": 0,
+      "explanation": "При равенстве первого ключа уникальный второй ключ разрешит совпадение однозначно."
+    },
+    {
+      "type": "code",
+      "title": "Сводная таблица без библиотеки",
+      "prompt": "pivot_totals(rows) получает тройки (день, зона, сумма). Верните вложенный словарь {день: {зона: сумма}}, создавая только наблюдавшиеся пары.",
+      "starter": "def pivot_totals(rows):\n    # Ваше решение\n    pass",
+      "hint": "Получите словарь конкретного дня через setdefault.",
+      "solution": "def pivot_totals(rows):\n    out = {}\n    for day, zone, amount in rows:\n        per_day = out.setdefault(day, {})\n        per_day[zone] = per_day.get(zone, 0) + amount\n    return out",
+      "tests": [
+        {
+          "label": "Два измерения",
+          "assert": "assert pivot_totals([(1,'A',2),(2,'A',1),(1,'A',3),(1,'B',0)]) == {1:{'A':5,'B':0},2:{'A':1}}"
+        },
+        {
+          "label": "Нет пар",
+          "assert": "assert pivot_totals([]) == {}"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Медиана длительностей",
+      "prompt": "median_known(values) вычисляет медиану числовых значений, пропуская None. При чётном числе наблюдений усредните центральную пару. Для набора без известных значений верните None.",
+      "starter": "def median_known(values):\n    # Ваше решение\n    pass",
+      "hint": "Отсортируйте известные значения или используйте statistics.median.",
+      "solution": "def median_known(values):\n    from statistics import median\n    known = [v for v in values if v is not None]\n    return median(known) if known else None",
+      "tests": [
+        {
+          "label": "Чётная длина",
+          "assert": "assert median_known([8,None,2,4,12]) == 6"
+        },
+        {
+          "label": "Нечётная длина и пропуски",
+          "assert": "assert median_known([8,2,20]) == 8 and median_known([None]) is None"
+        }
+      ]
+    },
+    {
+      "type": "choice",
+      "title": "Выбрать график",
+      "prompt": "Нужно найти длинный хвост времени доставки и увидеть частоту разных интервалов длительности. Что построить?",
+      "options": [
+        "Круговую диаграмму долей районов",
+        "Линию по произвольному порядку заказов",
+        "Гистограмму длительности с подписями минут и частоты"
+      ],
+      "answer": 2,
+      "explanation": "Гистограмма группирует числовые значения по интервалам и показывает частоты."
+    },
+    {
+      "type": "choice",
+      "title": "Состояние ноутбука",
+      "prompt": "Ноутбук выполняется у автора, а после Restart & Run All возникает NameError. Какое объяснение стоит проверить в первую очередь?",
+      "options": [
+        "Изменился математический оператор сложения",
+        "Переменная существовала только в состоянии старого ядра",
+        "В ноутбуке запрещено использовать функции"
+      ],
+      "answer": 1,
+      "explanation": "Переменная могла остаться после удалённой ячейки или запуска ячеек в другом порядке."
+    },
+    {
+      "type": "code",
+      "title": "Схема записи",
+      "prompt": "missing_fields(row, required) возвращает список обязательных имён, отсутствующих в словаре row, в порядке required. Существующее поле со значением None считается присутствующим.",
+      "starter": "def missing_fields(row, required):\n    # Ваше решение\n    pass",
+      "hint": "Для проверки схемы важно наличие ключа в словаре. Проверку значения можно выполнить отдельно.",
+      "solution": "def missing_fields(row, required):\n    return [name for name in required if name not in row]",
+      "tests": [
+        {
+          "label": "Поле со значением None",
+          "assert": "assert missing_fields({'id':None}, ['id','zone']) == ['zone']"
+        },
+        {
+          "label": "Порядок полей",
+          "assert": "assert missing_fields({}, ['z','a']) == ['z','a']"
+        }
+      ]
+    },
+    {
+      "type": "choice",
+      "title": "Карточка набора",
+      "prompt": "Команде предлагают использовать набор адресов стороннего поставщика в публичном упражнении. Какие сведения проверить до включения?",
+      "options": [
+        "Только число строк",
+        "Красивое название и скриншот таблицы",
+        "Источник, право распространения, состав полей и подход к обезличиванию"
+      ],
+      "answer": 2,
+      "explanation": "Набор должен подходить для конкретного использования по правам и по содержимому."
+    },
+    {
+      "type": "code",
+      "title": "Сверить два отчёта",
+      "prompt": "diff_reports(left, right) принимает два словаря с числовыми суммами по зонам. Отсутствующая зона эквивалентна сумме 0. Верните отсортированные имена зон, где суммы различаются.",
+      "starter": "def diff_reports(left, right):\n    # Ваше решение\n    pass",
+      "hint": "Сравните значения для объединения ключей.",
+      "solution": "def diff_reports(left, right):\n    keys = set(left) | set(right)\n    return sorted(k for k in keys if left.get(k, 0) != right.get(k, 0))",
+      "tests": [
+        {
+          "label": "Расхождения с обеих сторон",
+          "assert": "assert diff_reports({'B':3,'A':1,'Z':0},{'C':5,'A':1,'B':2}) == ['B','C']"
+        },
+        {
+          "label": "Отсутствующий ноль",
+          "assert": "assert diff_reports({}, {'X':0}) == []"
+        }
+      ]
+    }
+  ],
+  "quiz": [
+    {
+      "prompt": "Что измеряет dtype у массива?",
+      "options": [
+        "Тип хранения элементов",
+        "Число строк таблицы",
+        "Название датасета"
+      ],
+      "answer": 0,
+      "explanation": "dtype определяет представление одного значения массива."
+    },
+    {
+      "prompt": "Какой аргумент pandas.merge выявит дубли ключа в правом справочнике?",
+      "options": [
+        "sort=True",
+        "validate='many_to_one'",
+        "how='outer'"
+      ],
+      "answer": 1,
+      "explanation": "Ограничение many_to_one проверяет уникальность ключей справа."
+    },
+    {
+      "prompt": "Что произойдёт при AVG по значениям 2, 0, NULL?",
+      "options": [
+        "Среднее равно 2/3",
+        "Результат равен NULL",
+        "Среднее равно 1"
+      ],
+      "answer": 2,
+      "explanation": "NULL пропущен, а ноль входит в числитель и знаменатель."
+    },
+    {
+      "prompt": "Какая визуализация помогает изучать связь двух числовых признаков?",
+      "options": [
+        "Диаграмма рассеяния",
+        "Список первичных ключей",
+        "Текстовый заголовок набора"
+      ],
+      "answer": 0,
+      "explanation": "Каждая точка соответствует паре измерений одного объекта."
+    },
+    {
+      "prompt": "Что фиксировать для воспроизведения отчёта через месяц?",
+      "options": [
+        "Только последнюю диаграмму",
+        "Снимок/версию данных, код, окружение и порядок запуска",
+        "Только число строк исходной таблицы"
+      ],
+      "answer": 1,
+      "explanation": "Изменение данных, версии обработки или состояния ядра может изменить результат."
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f6f7fa">
+  <meta name="description" content="Tensorium — интерактивная школа Python и машинного обучения. Пишите код, обучайте модели и проверяйте результат прямо в браузере.">
+  <title>Tensorium — машинное обучение на Python</title>
+  <link rel="icon" href="./assets/brand.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<a class="skip" href="#main">К содержимому</a>
+<div id="shell">
+  <div class="nav-scrim" id="nav-scrim" hidden></div>
+  <aside id="sidebar" aria-label="Навигация по платформе"></aside>
+  <div id="workspace">
+    <header id="topbar"></header>
+    <main id="main" tabindex="-1">
+      <div class="loading">Загрузка учебного пространства…</div>
+    </main>
+    <footer id="foot"></footer>
+  </div>
+</div>
+<dialog id="overlay" aria-label="Действия с курсом"></dialog>
+<div id="toast" role="status" aria-live="polite"></div>
+<noscript>Для интерактивных уроков и запуска Python включите JavaScript в браузере.</noscript>
+<script type="module" src="./js/app.js?v=2"></script>
+</body>
+</html>

@@ -1,0 +1,380 @@
+{
+  "lessons": [
+    {
+      "title": "От строки к классификатору обращений",
+      "body": [
+        "Слова «Заказ» и «заказ» часто следует считать одинаковыми. Нормализация Unicode и casefold помогают согласовать запись, но конкретная задача определяет, удалять ли знаки и регистр. В коде «не доставили» и «доставили» различаются биграммами. Словарь строится только по обучающим документам.",
+        "TF-IDF увеличивает вес слов, характерных для отдельных документов, и уменьшает вес слов, встречающихся повсюду. Линейный классификатор на TF-IDF — сильная исходная модель для коротких обращений. Разбейте сообщения по диалогу, затем сравните macro F1 и ошибки по каждой редкой теме."
+      ],
+      "example": "from sklearn.feature_extraction.text import TfidfVectorizer\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.pipeline import make_pipeline\ntexts = [\"заказ опаздывает\", \"доставка задержана\", \"верните оплату\", \"возврат денег\"]\nlabels = [\"срок\", \"срок\", \"деньги\", \"деньги\"]\npipe = make_pipeline(TfidfVectorizer(ngram_range=(1, 2)), LogisticRegression())\npipe.fit(texts, labels)\nprint(pipe.predict([\"возврат оплаты\", \"заказ задержан\"]))"
+    },
+    {
+      "title": "Представление и длина последовательности",
+      "body": [
+        "Токенизатор отображает текст в последовательность ID. BPE последовательно объединяет частые соседние пары, поэтому редкое слово может состоять из нескольких знакомых фрагментов. Сохраните словарь, правила разбиения, номера PAD и UNK вместе с весами модели.",
+        "Embedding выбирает обучаемый вектор по индексу. Чтобы собрать batch разной длины, добавляют padding и передают маску действительных токенов. Для вынесения одного вектора на сообщение усредняйте только действительные позиции. RNN переносит состояние последовательно, LSTM управляет памятью через гейты, а self-attention делает прямые связи между позициями внутри контекста."
+      ],
+      "example": "import numpy as np\ntable = np.array([[0., 0.], [1., 2.], [3., 0.]])\nids = np.array([1, 2, 0, 0])\nmask = ids != 0\nmessage_vector = table[ids][mask].mean(axis=0)\nprint(message_vector)"
+    },
+    {
+      "title": "Что вычисляет self-attention",
+      "body": [
+        "У каждой позиции есть запрос Q, ключ K и значение V. Оценки сходства Q @ K.T делят на квадратный корень из размера ключа. Softmax по строкам превращает оценки в веса. Выход одной позиции — взвешенная сумма строк V. Несколько голов учат разные проекции.",
+        "При предсказании следующего токена позиции t доступны токены вплоть до t. До softmax задайте для будущих позиций оценку минус бесконечность. Padding-маска отдельно скрывает пустые позиции. Энкодер при классификации может использовать контекст с обеих сторон."
+      ],
+      "example": "import numpy as np\nq = np.array([[1., 0.], [1., 1.], [0., 1.]])\nk = q.copy()\nv = np.array([[2.], [5.], [1.]])\nscores = q @ k.T / np.sqrt(k.shape[1])\nfuture = np.triu(np.ones(scores.shape, dtype=bool), k=1)\nscores[future] = -np.inf\nweights = np.exp(scores - scores.max(axis=1, keepdims=True))\nweights /= weights.sum(axis=1, keepdims=True)\nprint(weights @ v)"
+    },
+    {
+      "title": "Свой небольшой Transformer на CPU",
+      "body": [
+        "Ниже миниатюрная авторегрессионная модель. Позиционный embedding сообщает порядок, causal self-attention смешивает доступный контекст, FFN преобразует признаки каждой позиции. У TransformerEncoderLayer есть residual-связи и LayerNorm. С причинной маской этот блок можно использовать в decoder-only языковой модели без cross-attention.",
+        "Текст для проверки создан отдельно. Целевые токены сдвинуты на одну позицию. Перплексия равна exp средней отрицательной логарифмической вероятности верного токена. Сравнивать её можно при общем токенизаторе и тестовом корпусе. Повторение короткого учебного текста проверяет механику обучения. Содержательные выводы требуют более разнообразного корпуса и базовой n-граммной модели."
+      ],
+      "example": "import math\nimport torch\nfrom torch import nn\nfrom torch.nn import functional as F\n\ntorch.manual_seed(14)\ntrain_text = (\"груз прибыл. заказ в пути. \" * 5).strip()\ntest_text = \"заказ прибыл. груз в пути.\"\nvocab = {c: i + 1 for i, c in enumerate(sorted(set(train_text)))}\nsize, context, dim = len(vocab) + 1, 8, 16\ndef encode(text):\n    return torch.tensor([vocab.get(c, 0) for c in text])\n\nclass TinyLM(nn.Module):\n    def __init__(self):\n        super().__init__()\n        self.tokens = nn.Embedding(size, dim)\n        self.positions = nn.Embedding(context, dim)\n        self.block = nn.TransformerEncoderLayer(dim, 2, 32, dropout=0, batch_first=True)\n        self.out = nn.Linear(dim, size)\n\n    def forward(self, ids):\n        length = ids.shape[1]\n        pos = torch.arange(length, device=ids.device)\n        future = torch.triu(torch.ones(length, length, dtype=torch.bool, device=ids.device), diagonal=1)\n        return self.out(self.block(self.tokens(ids) + self.positions(pos), src_mask=future))\n\nwindows = encode(train_text).unfold(0, context + 1, 1)\nnet = TinyLM()\nopt = torch.optim.Adam(net.parameters(), lr=0.01)\nfor step in range(45):\n    batch = windows[torch.randint(len(windows), (8,))]\n    logits = net(batch[:, :-1])\n    loss = F.cross_entropy(logits.reshape(-1, size), batch[:, 1:].reshape(-1))\n    opt.zero_grad()\n    loss.backward()\n    opt.step()\ntest = encode(test_text).unfold(0, context + 1, 1)\nnet.eval()\nwith torch.no_grad():\n    next_logits = net(test[:, :-1])[:, -1]\n    print(\"perplexity\", math.exp(F.cross_entropy(next_logits, test[:, -1]).item()))"
+    },
+    {
+      "title": "Проверяем и настраиваем генерацию",
+      "body": [
+        "Получив логиты последней позиции, можно выбрать максимум или сэмплировать следующий токен. При положительной температуре T используют softmax(logits/T). Меньшая T концентрирует распределение, большая делает его более равномерным. Top-k сначала оставляет k лучших кандидатов, затем нормирует их вероятности.",
+        "Для сравнения используйте простой биграммный baseline с аддитивным сглаживанием. Оцените обе модели на одних целевых позициях, затем посмотрите реальные продолжения и частые ошибки. Разделение корпуса по документам до нарезки окон предотвращает повтор одних и тех же фрагментов в обучении и проверке."
+      ],
+      "example": "from collections import Counter\nfrom math import exp, log\ntrain = \"абаба\"\ntest = \"баба\"\nvocab = set(train) | {\"?\"}\npairs = Counter(zip(train, train[1:]))\ncontexts = Counter(train[:-1])\nlosses = []\nfor a, b in zip(test, test[1:]):\n    prob = (pairs[a, b] + 1) / (contexts[a] + len(vocab))\n    losses.append(-log(prob))\nprint(\"bigram perplexity\", exp(sum(losses) / len(losses)))"
+    }
+  ],
+  "tasks": [
+    {
+      "type": "code",
+      "title": "Нормализация обращений",
+      "prompt": "Примените к тексту Unicode NFC и casefold, затем верните список слов, разделённых любым пробелом. Знаки препинания сохраняются.",
+      "starter": "def tokens(text):\n    pass\n",
+      "tests": [
+        {
+          "label": "Регистр и пробелы",
+          "assert": "assert tokens(\"  ГРУЗ\tВ Пути  \")==[\"груз\",\"в\",\"пути\"]"
+        },
+        {
+          "label": "Составной символ",
+          "assert": "assert tokens(\"ЙОД\")==[\"йод\"]"
+        }
+      ],
+      "hint": "Метод split() без аргумента объединяет серии пробельных символов.",
+      "solution": "def tokens(text):\n    import unicodedata\n    return unicodedata.normalize(\"NFC\", text).casefold().split()"
+    },
+    {
+      "type": "code",
+      "title": "Биграммы слов",
+      "prompt": "Верните список перекрывающихся соседних пар токенов как кортежи в исходном порядке.",
+      "starter": "def bigrams(words):\n    pass\n",
+      "tests": [
+        {
+          "label": "Два перехода",
+          "assert": "assert bigrams([\"а\",\"б\",\"а\"])==[(\"а\",\"б\"),(\"б\",\"а\")]"
+        },
+        {
+          "label": "Один токен",
+          "assert": "assert bigrams([\"а\"])==[]"
+        }
+      ],
+      "hint": "Совместите последовательность с копией, сдвинутой на один токен.",
+      "solution": "def bigrams(words):\n    return list(zip(words, words[1:]))"
+    },
+    {
+      "type": "code",
+      "title": "Частота по документам",
+      "prompt": "Посчитайте, сколько документов содержит term хотя бы один раз. docs — последовательность списков токенов.",
+      "starter": "def document_frequency(docs, term):\n    pass\n",
+      "tests": [
+        {
+          "label": "Повтор внутри документа",
+          "assert": "assert document_frequency([[\"a\",\"a\"],[\"b\"],[\"b\",\"a\"]],\"a\")==2"
+        },
+        {
+          "label": "Нет документов",
+          "assert": "assert document_frequency([],\"x\")==0"
+        }
+      ],
+      "hint": "Вклад одного документа не превышает единицу.",
+      "solution": "def document_frequency(docs, term):\n    return sum(term in doc for doc in docs)"
+    },
+    {
+      "type": "code",
+      "title": "Кодирование с UNK",
+      "prompt": "Преобразуйте список токенов words в их индексы vocab. Для отсутствующих слов используйте переданный индекс unknown.",
+      "starter": "def encode_tokens(words, vocab, unknown):\n    pass\n",
+      "tests": [
+        {
+          "label": "Неизвестный токен",
+          "assert": "assert encode_tokens([\"A\",\"C\",\"B\"],{\"A\":2,\"B\":4},1)==[2,1,4]"
+        },
+        {
+          "label": "Пустое сообщение",
+          "assert": "assert encode_tokens([], {}, 0)==[]"
+        }
+      ],
+      "hint": "Используйте get с явно переданным значением по умолчанию.",
+      "solution": "def encode_tokens(words, vocab, unknown):\n    return [vocab.get(word, unknown) for word in words]"
+    },
+    {
+      "type": "code",
+      "title": "Padding и маска",
+      "prompt": "Верните кортеж из двух списков длины n ≥ 0: последовательности ID с правым дополнением pad и маски 1 для исходных токенов, 0 для дополнения. Длинный ввод обрежьте справа.",
+      "starter": "def pad_sequence(ids, n, pad):\n    pass\n",
+      "tests": [
+        {
+          "label": "Дополнение",
+          "assert": "assert pad_sequence([0,8],4,0)==([0,8,0,0],[1,1,0,0])"
+        },
+        {
+          "label": "Обрезка",
+          "assert": "assert pad_sequence([2,3,4],2,0)==([2,3],[1,1])"
+        }
+      ],
+      "hint": "Стройте маску по фактической длине, даже когда ID совпадает с pad.",
+      "solution": "def pad_sequence(ids, n, pad):\n    valid = list(ids[:n])\n    missing = n - len(valid)\n    return valid + [pad]*missing, [1]*len(valid) + [0]*missing"
+    },
+    {
+      "type": "code",
+      "title": "Среднее с маской",
+      "prompt": "По одномерным values и mask длины T верните среднее значений на позициях с mask=1. Если таких нет, верните None.",
+      "starter": "def masked_mean(values, mask):\n    pass\n",
+      "tests": [
+        {
+          "label": "Паддинг не влияет",
+          "assert": "assert masked_mean([4,2,12],[1,1,0])==3"
+        },
+        {
+          "label": "Все скрыты",
+          "assert": "assert masked_mean([2,3],[0,0]) is None"
+        }
+      ],
+      "hint": "Паддинг исключается и из суммы, и из числа позиций.",
+      "solution": "def masked_mean(values, mask):\n    kept = [v for v,m in zip(values, mask) if m]\n    return sum(kept)/len(kept) if kept else None"
+    },
+    {
+      "type": "code",
+      "title": "Матрица доступа",
+      "prompt": "Верните квадратную матрицу n × n из 0 и 1. В строке t единица означает, что query позиции t может видеть key позиции j при авторегрессионном обучении.",
+      "starter": "def causal_mask(n):\n    pass\n",
+      "tests": [
+        {
+          "label": "Три позиции",
+          "assert": "assert causal_mask(3)==[[1,0,0],[1,1,0],[1,1,1]]"
+        },
+        {
+          "label": "Пусто и одна позиция",
+          "assert": "assert causal_mask(0)==[] and causal_mask(1)==[[1]]"
+        }
+      ],
+      "hint": "Диагональ доступна, правый верхний треугольник скрыт.",
+      "solution": "def causal_mask(n):\n    return [[int(j<=t) for j in range(n)] for t in range(n)]"
+    },
+    {
+      "type": "code",
+      "title": "Сходство запроса с ключом",
+      "prompt": "По двум векторам одинаковой положительной длины верните scaled dot-product: скалярное произведение, делённое на корень из размерности.",
+      "starter": "def attention_score(query, key):\n    pass\n",
+      "tests": [
+        {
+          "label": "Четыре измерения",
+          "assert": "assert attention_score([1,2,0,1],[2,0,3,2])==2"
+        },
+        {
+          "label": "Один признак",
+          "assert": "assert attention_score([2],[-4])==-8"
+        }
+      ],
+      "hint": "В знаменателе корень из длины ключа.",
+      "solution": "def attention_score(query, key):\n    from math import sqrt\n    return sum(a*b for a,b in zip(query,key))/sqrt(len(key))"
+    },
+    {
+      "type": "code",
+      "title": "Одна строка внимания",
+      "prompt": "Каждый токен имеет одно вещественное значение values[j]. По готовым нормированным weights верните выход одной позиции после attention.",
+      "starter": "def attend(weights, values):\n    pass\n",
+      "tests": [
+        {
+          "label": "Неравные веса",
+          "assert": "assert attend([0.25,0.75],[0,4])==3"
+        },
+        {
+          "label": "Замаскированный токен",
+          "assert": "assert attend([1,0],[7,999])==7"
+        }
+      ],
+      "hint": "Сложите произведения весов на соответствующие значения.",
+      "solution": "def attend(weights, values):\n    return sum(w*v for w,v in zip(weights, values))"
+    },
+    {
+      "type": "code",
+      "title": "Сдвиг цели для языка",
+      "prompt": "По списку ids верните пару (inputs, targets) для предсказания следующего токена. Оба списка на один элемент короче исходного. Для пустого ввода оба пусты.",
+      "starter": "def next_token_pairs(ids):\n    pass\n",
+      "tests": [
+        {
+          "label": "Три ID",
+          "assert": "assert next_token_pairs([1,4,7])==([1,4],[4,7])"
+        },
+        {
+          "label": "Короткие входы",
+          "assert": "assert next_token_pairs([8])==([],[]) and next_token_pairs([])==([],[])"
+        }
+      ],
+      "hint": "Первый вход предсказывает второй токен.",
+      "solution": "def next_token_pairs(ids):\n    return ids[:-1], ids[1:]"
+    },
+    {
+      "type": "code",
+      "title": "Перплексия по потерям",
+      "prompt": "По списку отрицательных натуральных логарифмов вероятностей правильного токена верните perplexity. Для нулевого числа токенов верните None.",
+      "starter": "def perplexity(losses):\n    pass\n",
+      "tests": [
+        {
+          "label": "Равные вероятности",
+          "assert": "assert abs(perplexity([0.6931471805599453]*2)-2)<1e-9"
+        },
+        {
+          "label": "Уверенность и пустой ввод",
+          "assert": "assert perplexity([0,0])==1 and perplexity([]) is None"
+        }
+      ],
+      "hint": "Возведите e в степень средней потери по токенам.",
+      "solution": "def perplexity(losses):\n    from math import exp\n    return exp(sum(losses)/len(losses)) if losses else None"
+    },
+    {
+      "prompt": "Есть случайно разделённые диалоги для train и test. Где подбирать словарь TF-IDF?",
+      "options": [
+        "Только на документах train",
+        "На всех сообщениях после раскрытия test",
+        "Только на тестовых ответах"
+      ],
+      "answer": 0,
+      "explanation": "Состав словаря и IDF являются выученными параметрами препроцессинга.",
+      "type": "choice",
+      "title": "Словарь для классификатора"
+    },
+    {
+      "prompt": "Из трёх тем одна почти не распознаётся, общая accuracy остаётся высокой. Что посмотреть?",
+      "options": [
+        "Количество символов в имени файла",
+        "Только общую долю ответов первого класса",
+        "Macro F1 и матрицу ошибок по темам"
+      ],
+      "answer": 2,
+      "explanation": "Macro F1 придаёт каждому классу одинаковый вес.",
+      "type": "choice",
+      "title": "Редкий класс"
+    },
+    {
+      "prompt": "Без позиционного сигнала вход «курьер ждёт клиента» переставили. Как Transformer получает явные индексы позиций?",
+      "options": [
+        "Через размер выходного словаря",
+        "Через позиционные представления или позиционно-зависимый механизм внимания",
+        "За счёт размера batch"
+      ],
+      "answer": 1,
+      "explanation": "Порядок кодируют позиционные признаки. В авторегрессионной модели на доступность контекста также влияет маска.",
+      "type": "choice",
+      "title": "Два разных порядка"
+    },
+    {
+      "prompt": "Одну книгу нарезали перекрывающимися окнами, затем случайно разделили окна. Как исправить оценку на новых документах?",
+      "options": [
+        "Разделить документы до нарезки окон",
+        "Увеличить перекрытие на тесте",
+        "Заменить номера классов"
+      ],
+      "answer": 0,
+      "explanation": "Иначе общие фрагменты могут встретиться по обе стороны границы.",
+      "type": "choice",
+      "title": "Утечка соседних окон"
+    },
+    {
+      "prompt": "При той же модели требуется более предсказуемая генерация. Что обычно даст снижение T с 1 до 0,5?",
+      "options": [
+        "Сделает распределение равномернее",
+        "Удвоит длину словаря",
+        "Увеличит вероятность токенов с высокими логитами"
+      ],
+      "answer": 2,
+      "explanation": "Меньшая температура повышает контраст различий между логитами.",
+      "type": "choice",
+      "title": "Выбор температуры"
+    },
+    {
+      "prompt": "Две модели имеют разные словари и разное число токенов на предложение. Можно ли напрямую считать меньшую perplexity доказательством лучшего текста?",
+      "options": [
+        "Да, любое меньшее число всегда означает лучший текст",
+        "Нужна общая единица и протокол оценки",
+        "Можно сравнить, просто умножив на число слоёв"
+      ],
+      "answer": 1,
+      "explanation": "Перплексия зависит от определения токена, поэтому метрики на разных единицах не сопоставимы напрямую.",
+      "type": "choice",
+      "title": "Разная токенизация"
+    },
+    {
+      "prompt": "Классификатор уже получил обращение пользователя целиком. Какой контекст допускается при кодировании позиции?",
+      "options": [
+        "Все непустые токены обращения, включая правые",
+        "Только первое слово",
+        "Только токены из следующего обращения"
+      ],
+      "answer": 0,
+      "explanation": "Для двунаправленного энкодера правый контекст внутри наблюдаемого сообщения доступен.",
+      "type": "choice",
+      "title": "Классификация целого запроса"
+    }
+  ],
+  "quiz": [
+    {
+      "prompt": "Зачем делить скалярные произведения в attention на sqrt(d_k)?",
+      "options": [
+        "Чтобы добавить позиционные ID",
+        "Чтобы число токенов стало равно числу голов",
+        "Чтобы ограничить рост масштаба оценок при росте размерности"
+      ],
+      "answer": 2,
+      "explanation": "Масштабирование помогает избегать слишком резкого softmax."
+    },
+    {
+      "prompt": "Какие элементы закрывает causal mask для строки t при обычном языковом моделировании?",
+      "options": [
+        "Только саму позицию t",
+        "Позиции с индексами больше t",
+        "Все позиции до t"
+      ],
+      "answer": 1,
+      "explanation": "Будущие токены ещё неизвестны при генерации."
+    },
+    {
+      "prompt": "Как BPE обрабатывает редкие слова?",
+      "options": [
+        "Представляет их последовательностями знакомых субслов при наличии нужного покрытия",
+        "Всегда заменяет всё слово на один ID предложения",
+        "Удаляет повторяющиеся символы"
+      ],
+      "answer": 0,
+      "explanation": "Словарь субслов позволяет составлять представления новых слов из более мелких единиц."
+    },
+    {
+      "prompt": "Почему top-k с k=1 даёт жадный выбор при единственном максимуме?",
+      "options": [
+        "Потому что модель имеет одну голову",
+        "Потому что все остальные токены получают одинаковые большие веса",
+        "После фильтра остаётся один кандидат"
+      ],
+      "answer": 2,
+      "explanation": "Нормировка единственного оставшегося кандидата даёт вероятность 1."
+    },
+    {
+      "prompt": "Что несёт матрица V в scaled dot-product attention?",
+      "options": [
+        "Только позиционные номера",
+        "Значения, смешиваемые с полученными весами",
+        "Размер обучающей выборки"
+      ],
+      "answer": 1,
+      "explanation": "Сходство запроса с ключами определяет веса, которые применяются к значениям."
+    }
+  ]
+}
