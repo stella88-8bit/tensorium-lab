@@ -1,0 +1,540 @@
+{
+  "lessons": [
+    {
+      "title": "Числа, строки и присваивание",
+      "body": [
+        "Целое число int удобно для количества позиций и денег в минимальных единицах. Для расстояния подходит float. Строка '12' хранит символы, а 12 — число. После чтения через input() Python возвращает строку, которую можно преобразовать вызовом int(), если вход заведомо целый.",
+        "Для 25 коробок и машины вместимостью 6 коробок выражение 25 // 6 возвращает 4 полных загрузки, а 25 % 6 — остаток 1. Обычное деление / даёт дробный результат. Функция divmod() возвращает частное и остаток одновременно."
+      ],
+      "example": "boxes = int('25')\ncapacity = 6\nfull, rest = divmod(boxes, capacity)\nprint(f'{full} полных, остаток {rest}')"
+    },
+    {
+      "title": "Строки и условия",
+      "body": [
+        "Индексы в Python начинаются с нуля. Срез code[1:4] берёт позиции 1, 2 и 3. Методы strip() и lower() полезны при сравнении ввода пользователя, но исходная строка остаётся прежней. Сохраняйте результат метода в новую переменную.",
+        "Правило обработки заказа удобно записать через if, elif, else. Условия проверяются сверху вниз до первого истинного. Выражение x is None проверяет именно отсутствие значения. Проверка if x: также сочтёт ложными ноль, пустую строку и пустой список."
+      ],
+      "example": "zone = '  Север  '.strip().lower()\nweight = 0\nif weight is None:\n    print('Нет измерения')\nelif weight == 0:\n    print('Пустая тара')\nelse:\n    print(zone, weight)"
+    },
+    {
+      "title": "Списки, множества и словари",
+      "body": [
+        "Список сохраняет порядок и разрешает повторы. Кортеж удобен для фиксированной пары, например (цена, количество). Множество хранит уникальные элементы. Словарь связывает ключ со значением, поэтому по идентификатору заказа можно быстро найти его статус.",
+        "Для сводки храните в словаре число событий каждого типа. Метод get(key, 0) возвращает 0 при отсутствии ключа. Повторяющиеся записи будут увеличивать тот же счётчик. Список позволяет затем вывести статусы в выбранном вами порядке."
+      ],
+      "example": "statuses = ['новый', 'в пути', 'новый']\ncounts = {}\nfor status in statuses:\n    counts[status] = counts.get(status, 0) + 1\nprint(counts)"
+    },
+    {
+      "title": "Циклы и преобразования коллекций",
+      "body": [
+        "Цикл for перебирает элементы последовательности. С помощью enumerate(items, start=1) можно получить порядковый номер и элемент за одну операцию. zip() связывает соответствующие элементы разных последовательностей и по умолчанию останавливается на самой короткой.",
+        "while подходит, когда число итераций зависит от данных. Обновляйте переменную условия на каждом нужном пути выполнения. break прерывает цикл, continue переходит к следующему элементу. Простое преобразование или фильтр удобно записать в одном списковом включении."
+      ],
+      "example": "durations = [10, 35, 18]\nlate = [(n, t) for n, t in enumerate(durations, 1) if t > 20]\nprint(late)"
+    },
+    {
+      "title": "Функция как контракт",
+      "body": [
+        "В объявлении def имена параметров выступают локальными переменными. Значения передаёт вызывающий код. return завершает выполнение и передаёт результат вызывающему, а print() лишь выводит текст. Функция, которая дошла до конца без return, вернёт None.",
+        "Перед реализацией функции запишите обычный пример, минимальный вход и спорную границу. Например, у среднего времени для пустого списка нет естественного значения. Контракт может вернуть None. У непустого списка [0] среднее равно нулю."
+      ],
+      "example": "def mean_or_none(values):\n    if not values:\n        return None\n    return sum(values) / len(values)\n\nprint(mean_or_none([0]))"
+    },
+    {
+      "title": "Поиск ошибки на небольшом примере",
+      "body": [
+        "Допустим, отчёт считает нулевую стоимость пропуском. Вход [0, None, 50] позволяет проверить каждое решение ветки. Выпишите для каждого элемента значение условия, затем сравните таблицу с желаемым поведением.",
+        "При исключении traceback показывает цепочку вызовов. Начните с типа исключения и строки своего кода. Пустой список и обращение items[0] вызывают IndexError, а чтение отсутствующего ключа обычными квадратными скобками — KeyError."
+      ],
+      "example": "values = [0, None, 50]\nknown = [x for x in values if x is not None]\nprint(known)  # [0, 50]"
+    }
+  ],
+  "tasks": [
+    {
+      "type": "code",
+      "title": "Упаковка и дорога",
+      "prompt": "Реализуйте eta_minutes(packing, road). Верните сумму двух длительностей в минутах.",
+      "starter": "def eta_minutes(packing, road):\n    # Ваше решение\n    pass",
+      "hint": "Сложите значения параметров.",
+      "solution": "def eta_minutes(packing, road):\n    return packing + road",
+      "tests": [
+        {
+          "label": "Два этапа",
+          "assert": "assert eta_minutes(8, 12) == 20"
+        },
+        {
+          "label": "Нулевая упаковка",
+          "assert": "assert eta_minutes(0, 7) == 7"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Полные ящики",
+      "prompt": "split_boxes(items, capacity) возвращает кортеж из числа полных ящиков и остатка. Вместимость положительна.",
+      "starter": "def split_boxes(items, capacity):\n    # Ваше решение\n    pass",
+      "hint": "У целочисленного деления и остатка есть общая функция divmod().",
+      "solution": "def split_boxes(items, capacity):\n    return divmod(items, capacity)",
+      "tests": [
+        {
+          "label": "Есть остаток",
+          "assert": "assert split_boxes(17, 5) == (3, 2)"
+        },
+        {
+          "label": "Точное заполнение",
+          "assert": "assert split_boxes(12, 3) == (4, 0)"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Название зоны",
+      "prompt": "clean_zone(text) удаляет крайние пробелы и приводит строку к нижнему регистру. Сохраните пробелы между словами.",
+      "starter": "def clean_zone(text):\n    # Ваше решение\n    pass",
+      "hint": "Примените strip(), затем lower().",
+      "solution": "def clean_zone(text):\n    return text.strip().lower()",
+      "tests": [
+        {
+          "label": "Кириллица",
+          "assert": "assert clean_zone('  ЮЖНЫЙ РАЙОН\\t') == 'южный район'"
+        },
+        {
+          "label": "Пустой ввод",
+          "assert": "assert clean_zone('   ') == ''"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Рассчитать стоимость заказа",
+      "prompt": "total_price(items, delivery_fee) принимает пары (цена, количество) в целых единицах. У непустого заказа прибавьте доставку. Для пустого списка верните 0. При любом отрицательном значении, включая доставку пустого заказа, вызовите ValueError.",
+      "starter": "def total_price(items, delivery_fee):\n    # Ваше решение\n    pass",
+      "hint": "Проверьте знаки до возврата результата. Каждая позиция стоит price * quantity.",
+      "solution": "def total_price(items, delivery_fee):\n    if delivery_fee < 0 or any(p < 0 or q < 0 for p, q in items):\n        raise ValueError('Отрицательное значение')\n    return sum(p * q for p, q in items) + delivery_fee if items else 0",
+      "tests": [
+        {
+          "label": "Несколько позиций",
+          "assert": "assert total_price([(250, 2), (100, 1)], 50) == 650"
+        },
+        {
+          "label": "Пустая корзина",
+          "assert": "assert total_price([], 50) == 0"
+        },
+        {
+          "label": "Некорректная доставка",
+          "assert": "try:\n    total_price([], -1)\nexcept ValueError:\n    pass\nelse:\n    raise AssertionError('Ожидается ValueError')"
+        },
+        {
+          "label": "Отрицательные значения позиции",
+          "assert": "for bad in [[(-2, 1)], [(1, -3)]]:\n    try:\n        total_price(bad, 0)\n    except ValueError:\n        continue\n    raise AssertionError('Ожидается ValueError')"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Часы на табло",
+      "prompt": "clock_text(minutes) получает число минут от начала суток (0…1439). Верните время в формате HH:MM с ведущими нулями.",
+      "starter": "def clock_text(minutes):\n    # Ваше решение\n    pass",
+      "hint": "Часы и минуты можно получить через divmod(minutes, 60). Используйте формат :02d.",
+      "solution": "def clock_text(minutes):\n    hours, mins = divmod(minutes, 60)\n    return f'{hours:02d}:{mins:02d}'",
+      "tests": [
+        {
+          "label": "После полуночи",
+          "assert": "assert clock_text(3) == '00:03'"
+        },
+        {
+          "label": "Последняя минута",
+          "assert": "assert clock_text(1439) == '23:59'"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Диапазон веса",
+      "prompt": "weight_band(kg) возвращает 'лёгкий' при kg < 2, 'обычный' при 2 ≤ kg < 10 и 'тяжёлый' при kg ≥ 10. Значение неотрицательно.",
+      "starter": "def weight_band(kg):\n    # Ваше решение\n    pass",
+      "hint": "Проверяйте границы по возрастанию.",
+      "solution": "def weight_band(kg):\n    if kg < 2:\n        return 'лёгкий'\n    if kg < 10:\n        return 'обычный'\n    return 'тяжёлый'",
+      "tests": [
+        {
+          "label": "До двух",
+          "assert": "assert weight_band(1.9) == 'лёгкий'"
+        },
+        {
+          "label": "Ровно на границах",
+          "assert": "assert [weight_band(2), weight_band(10)] == ['обычный','тяжёлый']"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Доступна ли скидка",
+      "prompt": "eligible(amount, has_coupon) возвращает логическое значение. Условие — сумма от 1000 или (есть купон и сумма от 500).",
+      "starter": "def eligible(amount, has_coupon):\n    # Ваше решение\n    pass",
+      "hint": "Выделите условие купона скобками.",
+      "solution": "def eligible(amount, has_coupon):\n    return amount >= 1000 or (has_coupon and amount >= 500)",
+      "tests": [
+        {
+          "label": "Без купона",
+          "assert": "assert eligible(1000, False) is True and eligible(999, False) is False"
+        },
+        {
+          "label": "С купоном",
+          "assert": "assert eligible(500, True) is True and eligible(499, True) is False"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Последние символы",
+      "prompt": "short_code(text) возвращает последние три символа. Короткая строка возвращается целиком.",
+      "starter": "def short_code(text):\n    # Ваше решение\n    pass",
+      "hint": "Срез с отрицательным индексом считает от конца.",
+      "solution": "def short_code(text):\n    return text[-3:]",
+      "tests": [
+        {
+          "label": "Обычный код",
+          "assert": "assert short_code('D-2409') == '409'"
+        },
+        {
+          "label": "Короткий и пустой",
+          "assert": "assert short_code('Я') == 'Я' and short_code('') == ''"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Количество попыток",
+      "prompt": "count_status(statuses, target) возвращает число элементов списка, точно совпадающих с target.",
+      "starter": "def count_status(statuses, target):\n    # Ваше решение\n    pass",
+      "hint": "Можно считать совпадения циклом или методом count().",
+      "solution": "def count_status(statuses, target):\n    return statuses.count(target)",
+      "tests": [
+        {
+          "label": "Повторения",
+          "assert": "assert count_status(['ok','fail','ok'],'ok') == 2"
+        },
+        {
+          "label": "Нет совпадений",
+          "assert": "assert count_status([], 'ok') == 0"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Заполненные цены",
+      "prompt": "known_prices(values) возвращает список всех значений, кроме None, сохраняя порядок и нулевые цены.",
+      "starter": "def known_prices(values):\n    # Ваше решение\n    pass",
+      "hint": "Условие должно различать None и 0.",
+      "solution": "def known_prices(values):\n    return [x for x in values if x is not None]",
+      "tests": [
+        {
+          "label": "Нулевые значения",
+          "assert": "assert known_prices([0, None, 3, None]) == [0, 3]"
+        },
+        {
+          "label": "Все пропущены",
+          "assert": "assert known_prices([None, None]) == []"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Первое опоздание",
+      "prompt": "first_late(minutes, limit) возвращает индекс первого времени строго выше лимита. Если таких значений нет, верните None. Индексы начинаются с нуля.",
+      "starter": "def first_late(minutes, limit):\n    # Ваше решение\n    pass",
+      "hint": "Используйте enumerate и немедленный return при совпадении.",
+      "solution": "def first_late(minutes, limit):\n    for i, value in enumerate(minutes):\n        if value > limit:\n            return i\n    return None",
+      "tests": [
+        {
+          "label": "Первое из двух",
+          "assert": "assert first_late([20, 25, 40, 29], 25) == 2"
+        },
+        {
+          "label": "На границе",
+          "assert": "assert first_late([10, 15], 15) is None"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "На каких днях был спрос",
+      "prompt": "active_days(counts) возвращает номера дней с ненулевым количеством заказов. Первый день имеет номер 1, значения неотрицательны.",
+      "starter": "def active_days(counts):\n    # Ваше решение\n    pass",
+      "hint": "enumerate принимает именованный параметр start.",
+      "solution": "def active_days(counts):\n    return [i for i, count in enumerate(counts, start=1) if count > 0]",
+      "tests": [
+        {
+          "label": "Есть пропуски",
+          "assert": "assert active_days([2, 0, 3]) == [1, 3]"
+        },
+        {
+          "label": "Нет заказов",
+          "assert": "assert active_days([0, 0]) == []"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Редкие типы упаковки",
+      "prompt": "only_left(first, second) возвращает отсортированный список уникальных типов из first, отсутствующих в second. Сравнение строк учитывает регистр.",
+      "starter": "def only_left(first, second):\n    # Ваше решение\n    pass",
+      "hint": "Вычтите второе множество из первого, затем отсортируйте.",
+      "solution": "def only_left(first, second):\n    return sorted(set(first) - set(second))",
+      "tests": [
+        {
+          "label": "Пересечение",
+          "assert": "assert only_left(['b','a','b','c'],['c','x']) == ['a','b']"
+        },
+        {
+          "label": "Полное совпадение",
+          "assert": "assert only_left(['a'],['a']) == []"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Частоты статусов",
+      "prompt": "counts_by_status(statuses) возвращает словарь {статус: число появлений}.",
+      "starter": "def counts_by_status(statuses):\n    # Ваше решение\n    pass",
+      "hint": "Для нового ключа начните с нуля.",
+      "solution": "def counts_by_status(statuses):\n    result = {}\n    for s in statuses:\n        result[s] = result.get(s, 0) + 1\n    return result",
+      "tests": [
+        {
+          "label": "Смешанный поток",
+          "assert": "assert counts_by_status(['new','done','new']) == {'new':2, 'done':1}"
+        },
+        {
+          "label": "Пустой поток",
+          "assert": "assert counts_by_status([]) == {}"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Сводка по району",
+      "prompt": "totals(rows) принимает пары (район, сумма) и возвращает словарь сумм по районам, включая районы с нулевой суммой.",
+      "starter": "def totals(rows):\n    # Ваше решение\n    pass",
+      "hint": "Распакуйте две части пары в заголовке цикла.",
+      "solution": "def totals(rows):\n    result = {}\n    for zone, amount in rows:\n        result[zone] = result.get(zone, 0) + amount\n    return result",
+      "tests": [
+        {
+          "label": "Группировка",
+          "assert": "assert totals([('Юг',2),('Север',4),('Юг',3)]) == {'Юг':5,'Север':4}"
+        },
+        {
+          "label": "Нулевая сумма",
+          "assert": "assert totals([('А',0)]) == {'А':0}"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Пометить приоритеты",
+      "prompt": "pair_ids(ids, priorities) связывает последовательности в список пар по порядку. Если их длины различаются, вызовите ValueError.",
+      "starter": "def pair_ids(ids, priorities):\n    # Ваше решение\n    pass",
+      "hint": "Одного zip() недостаточно: он заканчивает работу при исчерпании самого короткого входа.",
+      "solution": "def pair_ids(ids, priorities):\n    if len(ids) != len(priorities):\n        raise ValueError('Разное число значений')\n    return list(zip(ids, priorities))",
+      "tests": [
+        {
+          "label": "Две пары",
+          "assert": "assert pair_ids(['B','A'],[2,1]) == [('B',2),('A',1)]"
+        },
+        {
+          "label": "Несовпадение длин",
+          "assert": "try:\n    pair_ids([1, 2], [9])\nexcept ValueError:\n    pass\nelse:\n    raise AssertionError('Проверьте длины')"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Среднее с пропусками",
+      "prompt": "mean_known(values) возвращает среднее известных чисел. Пропуск обозначен None. Если известных значений нет, верните None.",
+      "starter": "def mean_known(values):\n    # Ваше решение\n    pass",
+      "hint": "Сумму и количество считайте для отобранных значений.",
+      "solution": "def mean_known(values):\n    known = [v for v in values if v is not None]\n    return sum(known) / len(known) if known else None",
+      "tests": [
+        {
+          "label": "Пропуск и ноль",
+          "assert": "assert mean_known([None, 0, 4]) == 2"
+        },
+        {
+          "label": "Нет измерений",
+          "assert": "assert mean_known([None]) is None and mean_known([]) is None"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Устойчивый порядок",
+      "prompt": "by_minutes(rows) сортирует список пар (id, минуты) по времени по возрастанию. При равенстве сохраните исходный порядок и не меняйте входной список.",
+      "starter": "def by_minutes(rows):\n    # Ваше решение\n    pass",
+      "hint": "sorted создаёт новый список и сохраняет порядок элементов с одинаковым ключом.",
+      "solution": "def by_minutes(rows):\n    return sorted(rows, key=lambda row: row[1])",
+      "tests": [
+        {
+          "label": "Равное время",
+          "assert": "assert by_minutes([('z',4),('b',1),('a',1)]) == [('b',1),('a',1),('z',4)]"
+        },
+        {
+          "label": "Исходные данные",
+          "assert": "rows = [('c',4),('a',1)]\noriginal = rows.copy()\nby_minutes(rows)\nassert rows == original"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Лимит смены",
+      "prompt": "take_shift(times, budget) берёт максимальный начальный отрезок списка положительных длительностей с суммой не больше бюджета. Верните число взятых заказов. Перепрыгивать через долгий заказ нельзя.",
+      "starter": "def take_shift(times, budget):\n    # Ваше решение\n    pass",
+      "hint": "Ведите накопительную сумму. Завершите цикл перед первым превышением.",
+      "solution": "def take_shift(times, budget):\n    used = 0\n    count = 0\n    for duration in times:\n        if used + duration > budget:\n            break\n        used += duration\n        count += 1\n    return count",
+      "tests": [
+        {
+          "label": "Остановка в середине",
+          "assert": "assert take_shift([3,8,1], 7) == 1"
+        },
+        {
+          "label": "Ровно весь бюджет",
+          "assert": "assert take_shift([2, 3], 5) == 2 and take_shift([], 0) == 0"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Уникальные коды по порядку",
+      "prompt": "unique_codes(codes) возвращает первые вхождения строк, сохраняя порядок появления.",
+      "starter": "def unique_codes(codes):\n    # Ваше решение\n    pass",
+      "hint": "Можно использовать seen для уже встреченных кодов.",
+      "solution": "def unique_codes(codes):\n    seen = set()\n    result = []\n    for code in codes:\n        if code not in seen:\n            result.append(code)\n            seen.add(code)\n    return result",
+      "tests": [
+        {
+          "label": "Повторы через интервал",
+          "assert": "assert unique_codes(['z','a','z','b','a']) == ['z','a','b']"
+        },
+        {
+          "label": "Пустые коды допустимы",
+          "assert": "assert unique_codes(['','q','']) == ['', 'q']"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Порог накопления",
+      "prompt": "days_to_goal(daily, goal) возвращает порядковый номер первого дня, когда накопленная сумма достигла goal. Для цели ≤0 верните 0. Если за все дни цель не достигнута, верните None. Значения daily неотрицательны.",
+      "starter": "def days_to_goal(daily, goal):\n    # Ваше решение\n    pass",
+      "hint": "Проверьте цель до обхода дней.",
+      "solution": "def days_to_goal(daily, goal):\n    if goal <= 0:\n        return 0\n    total = 0\n    for day, amount in enumerate(daily, 1):\n        total += amount\n        if total >= goal:\n            return day\n    return None",
+      "tests": [
+        {
+          "label": "Точное достижение",
+          "assert": "assert days_to_goal([3,0,4,1],7) == 3"
+        },
+        {
+          "label": "Ранняя и недостижимая цель",
+          "assert": "assert days_to_goal([],0) == 0 and days_to_goal([2],3) is None"
+        }
+      ]
+    },
+    {
+      "type": "choice",
+      "title": "Что привело к исключению",
+      "prompt": "Сборщик выполняет row['zone'] для всех строк. На одной строке возник KeyError: 'zone'. Какой вход воспроизводит эту ошибку?",
+      "options": [
+        "{'zone': None}",
+        "{'zone': ''}",
+        "{'district': 'Юг'}"
+      ],
+      "answer": 2,
+      "explanation": "KeyError возникает при отсутствии ключа. Существующий ключ со значением None или пустой строкой доступен."
+    },
+    {
+      "type": "code",
+      "title": "Остатки после выдачи",
+      "prompt": "reserve(stock, requested) возвращает новый словарь запасов после выдачи. Ключи requested гарантированно есть в stock, количества неотрицательны. Если хотя бы одной позиции недостаточно, вызовите ValueError. Исходный stock сохраняется.",
+      "starter": "def reserve(stock, requested):\n    # Ваше решение\n    pass",
+      "hint": "Копия словаря позволит рассчитывать новые остатки, сохранив исходный.",
+      "solution": "def reserve(stock, requested):\n    result = stock.copy()\n    for key, n in requested.items():\n        if n > result[key]:\n            raise ValueError('Не хватает товара')\n        result[key] -= n\n    return result",
+      "tests": [
+        {
+          "label": "Остатки и исходный словарь",
+          "assert": "stock = {'a':4,'b':2}\nassert reserve(stock, {'a':3}) == {'a':1,'b':2} and stock == {'a':4,'b':2}"
+        },
+        {
+          "label": "Недостаточный запас",
+          "assert": "try:\n    reserve({'a':1}, {'a':2})\nexcept ValueError:\n    pass\nelse:\n    raise AssertionError('Ожидается ValueError')"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "title": "Отчёт по выполненным заказам",
+      "prompt": "delivered_summary(rows) принимает словари с ключами zone, status и minutes. Для строк со статусом 'done' верните словарь средних длительностей по зонам. Район без завершённых доставок пропустите.",
+      "starter": "def delivered_summary(rows):\n    # Ваше решение\n    pass",
+      "hint": "Накапливайте сумму и количество для каждого района, затем вычислите средние.",
+      "solution": "def delivered_summary(rows):\n    groups = {}\n    for row in rows:\n        if row['status'] == 'done':\n            groups.setdefault(row['zone'], []).append(row['minutes'])\n    return {zone: sum(times) / len(times) for zone, times in groups.items()}",
+      "tests": [
+        {
+          "label": "Среднее и фильтр",
+          "assert": "data = [{'zone':'A','status':'done','minutes':4},{'zone':'A','status':'done','minutes':8},{'zone':'B','status':'new','minutes':2}]\nassert delivered_summary(data) == {'A':6}"
+        },
+        {
+          "label": "Пустой отчёт",
+          "assert": "assert delivered_summary([]) == {}"
+        }
+      ]
+    }
+  ],
+  "quiz": [
+    {
+      "prompt": "Какое значение вычисляет 17 // 5?",
+      "options": [
+        "3.4",
+        "2",
+        "3"
+      ],
+      "answer": 2,
+      "explanation": "Целочисленное деление двух положительных целых отбрасывает остаток."
+    },
+    {
+      "prompt": "Что получится после выражения '  ML '.strip().lower()?",
+      "options": [
+        "'ml'",
+        "'ML'",
+        "'  ml '"
+      ],
+      "answer": 0,
+      "explanation": "Первый вызов убирает пробелы по краям, второй приводит буквы к нижнему регистру."
+    },
+    {
+      "prompt": "Что сохранит list(zip([1,2,3], ['a','b']))?",
+      "options": [
+        "Три пары, последняя со значением None",
+        "Две пары",
+        "Возникнет исключение"
+      ],
+      "answer": 1,
+      "explanation": "Обычный zip исчерпывается вместе с самым коротким входом."
+    },
+    {
+      "prompt": "Что возвращает функция, в теле которой только print(5)?",
+      "options": [
+        "Число 5",
+        "Строку '5'",
+        "None"
+      ],
+      "answer": 2,
+      "explanation": "Вывод в консоль и возвращаемое значение — разные действия."
+    },
+    {
+      "prompt": "Какое условие сохранит нулевую цену и исключит пропуски None?",
+      "options": [
+        "if price is not None",
+        "if price",
+        "if price > 0"
+      ],
+      "answer": 0,
+      "explanation": "Сравнение с None явно задаёт единственный пропускаемый маркер."
+    }
+  ]
+}

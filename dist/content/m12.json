@@ -1,0 +1,390 @@
+{
+  "lessons": [
+    {
+      "title": "Тензоры и граф вычислений",
+      "body": [
+        "Тензор хранит значения одного dtype на одном устройстве. Для линейного слоя вход обычно имеет форму (batch, features) и тип float32. Для CrossEntropyLoss цели задают целыми индексами классов типа long. Перед сравнением ответа с целью выведите shape, dtype и device обоих тензоров.",
+        "Когда requires_grad=True, autograd запоминает операции для вычисления производных. В примере при x=2 функция даёт 7, градиент равен 6. Повторный backward по новому графу прибавит ещё один вклад к x.grad. Обнуляйте градиенты при переходе к независимому шагу."
+      ],
+      "example": "import torch\nx = torch.tensor(2.0, requires_grad=True)\nloss = x.square() + 2 * x - 1\nloss.backward()\nprint(loss.item(), x.grad.item())"
+    },
+    {
+      "title": "От данных до работающего цикла",
+      "body": [
+        "Dataset описывает примеры, DataLoader собирает из них батчи. Для обычной табличной классификации перемешайте обучающие строки, а validation сохраните без случайных преобразований. Фиксируйте seed генератора и состав разбиения. На разных устройствах и версиях фреймворка возможны небольшие численные различия.",
+        "Следующий пример полностью запускается локально на CPU с установленным PyTorch. Обучающий и проверочный наборы создаются разными строками синтетической выборки. Добавьте печать loss и попробуйте уменьшить число эпох. Оцените влияние на независимые 48 примеров."
+      ],
+      "example": "import torch\nfrom torch import nn\nfrom torch.utils.data import DataLoader, TensorDataset\n\ntorch.manual_seed(12)\nx = torch.randn(240, 2)\ny = (x[:, 0] - x[:, 1] > 0).long()\nloader = DataLoader(TensorDataset(x[:192], y[:192]), batch_size=24, shuffle=True)\nnet = nn.Sequential(nn.Linear(2, 12), nn.ReLU(), nn.Linear(12, 2))\noptimizer = torch.optim.Adam(net.parameters(), lr=0.02)\nloss_fn = nn.CrossEntropyLoss()\nfor epoch in range(12):\n    net.train()\n    for inputs, targets in loader:\n        optimizer.zero_grad()\n        loss = loss_fn(net(inputs), targets)\n        loss.backward()\n        optimizer.step()\nnet.eval()\nwith torch.no_grad():\n    predictions = net(x[192:]).argmax(dim=1)\n    print(\"accuracy\", (predictions == y[192:]).float().mean().item())"
+    },
+    {
+      "title": "Режим проверки и контроль чисел",
+      "body": [
+        "net.eval() переключает режимы Dropout и BatchNorm. Блок no_grad() отключает запись графа и экономит память. Эти операции решают разные задачи. Для инференса обычно нужны обе. В слишком маленьком batch статистика BatchNorm может быть нестабильной. LayerNorm нормализует выбранные признаки внутри примера.",
+        "Сохраняя значения потерь за эпоху, складывайте loss.item() × фактический размер batch. В конце делите на число объектов. Последняя порция может быть меньше. При NaN проверьте входы, логиты, loss и градиенты по очереди. Clipping ограничивает норму градиента перед шагом."
+      ],
+      "example": "import torch\nfrom torch import nn\nnet = nn.Sequential(nn.Linear(2, 3), nn.Dropout(0.5), nn.Linear(3, 2))\nx = torch.ones(4, 2)\nnet.eval()\nwith torch.no_grad():\n    first = net(x)\n    second = net(x)\nprint(torch.allclose(first, second))"
+    },
+    {
+      "title": "Контрольные точки и перенос на устройство",
+      "body": [
+        "Для инференса сохраните state_dict и описание архитектуры, порядка признаков и препроцессора. Для продолжения обучения добавьте состояние optimizer, scheduler, эпоху и при необходимости генераторы случайных чисел. Восстанавливайте только собственные или проверенные файлы. Параметры и входы должны находиться на одном устройстве.",
+        "Для диагностики OOM уменьшите batch и проверьте, не сохраняются ли графы прошлых шагов в списке метрик. Смешанная точность может уменьшать память и ускорять вычисления на подходящих GPU. Для учебной CPU-модели сначала получите корректный результат в float32 и измерьте, где тратится время."
+      ],
+      "example": "import io\nimport torch\nfrom torch import nn\nnet = nn.Linear(2, 1)\nbuffer = io.BytesIO()\ntorch.save(net.state_dict(), buffer)\nbuffer.seek(0)\nrestored = nn.Linear(2, 1)\nrestored.load_state_dict(torch.load(buffer, map_location=\"cpu\", weights_only=True))\nrestored.eval()\nwith torch.no_grad():\n    print(restored(torch.zeros(1, 2)))"
+    }
+  ],
+  "tasks": [
+    {
+      "type": "code",
+      "title": "Порции для DataLoader",
+      "prompt": "Разбейте список items на последовательные списки длины batch_size. Сохраните неполную последнюю порцию. batch_size положительно.",
+      "starter": "def batches(items, batch_size):\n    pass\n",
+      "tests": [
+        {
+          "label": "Есть остаток",
+          "assert": "assert batches([1,2,3,4,5],2)==[[1,2],[3,4],[5]]"
+        },
+        {
+          "label": "Пустой датасет",
+          "assert": "assert batches([], 4)==[]"
+        }
+      ],
+      "hint": "Используйте range с шагом batch_size.",
+      "solution": "def batches(items, batch_size):\n    return [items[i:i+batch_size] for i in range(0,len(items),batch_size)]"
+    },
+    {
+      "type": "code",
+      "title": "Сколько шагов в эпохе",
+      "prompt": "Верните число шагов DataLoader для n объектов и размера b > 0. Если drop_last истинно, отбросьте остаток. n ≥ 0.",
+      "starter": "def step_count(n, b, drop_last):\n    pass\n",
+      "tests": [
+        {
+          "label": "Неполный batch",
+          "assert": "assert step_count(10,4,False)==3 and step_count(10,4,True)==2"
+        },
+        {
+          "label": "Полные и пустые",
+          "assert": "assert step_count(8,4,False)==2 and step_count(0,4,False)==0"
+        }
+      ],
+      "hint": "Для неполного последнего batch добавьте один шаг только когда нужно.",
+      "solution": "def step_count(n, b, drop_last):\n    return n//b if drop_last else (n+b-1)//b"
+    },
+    {
+      "type": "code",
+      "title": "Средний loss за эпоху",
+      "prompt": "Даны средние потери по батчам и их размеры. Вычислите среднюю потерю по объектам. Для нулевого общего размера верните None.",
+      "starter": "def epoch_loss(losses, sizes):\n    pass\n",
+      "tests": [
+        {
+          "label": "Батчи разного размера",
+          "assert": "assert abs(epoch_loss([1.,4.],[2,1])-2)<1e-9"
+        },
+        {
+          "label": "Нет объектов",
+          "assert": "assert epoch_loss([],[]) is None"
+        }
+      ],
+      "hint": "Вклад среднего loss умножается на размер своего batch.",
+      "solution": "def epoch_loss(losses, sizes):\n    count = sum(sizes)\n    return sum(loss*n for loss,n in zip(losses,sizes))/count if count else None"
+    },
+    {
+      "type": "code",
+      "title": "Класс из логитов",
+      "prompt": "Для каждой непустой строки logits верните индекс максимального значения. При ничьей выбирайте первый индекс.",
+      "starter": "def predict_classes(logits):\n    pass\n",
+      "tests": [
+        {
+          "label": "Отрицательные значения",
+          "assert": "assert predict_classes([[-8,-2,-3],[0,0,0]])==[1,0]"
+        },
+        {
+          "label": "Без объектов",
+          "assert": "assert predict_classes([])==[]"
+        }
+      ],
+      "hint": "Сохраняйте индекс класса, а не значение логита.",
+      "solution": "def predict_classes(logits):\n    return [row.index(max(row)) for row in logits]"
+    },
+    {
+      "type": "code",
+      "title": "Размер полносвязной модели",
+      "prompt": "Архитектура описана числом признаков и списком размеров полносвязных слоёв. У каждого нейрона есть bias. Посчитайте число обучаемых скаляров.",
+      "starter": "def parameter_count(input_dim, layers):\n    pass\n",
+      "tests": [
+        {
+          "label": "Два слоя",
+          "assert": "assert parameter_count(2,[3,1])==13"
+        },
+        {
+          "label": "Без слоёв",
+          "assert": "assert parameter_count(6,[])==0"
+        }
+      ],
+      "hint": "У слоя d → h есть d×h весов и h смещений.",
+      "solution": "def parameter_count(input_dim, layers):\n    total = 0\n    for output_dim in layers:\n        total += (input_dim + 1) * output_dim\n        input_dim = output_dim\n    return total"
+    },
+    {
+      "type": "code",
+      "title": "Ограничение глобальной нормы",
+      "prompt": "Для вектора grad верните новый вектор с той же направленностью, ограничив L2-норму сверху положительным max_norm. Нулевой вектор сохраните.",
+      "starter": "def clip_grad(grad, max_norm):\n    pass\n",
+      "tests": [
+        {
+          "label": "Вектор 3,4",
+          "assert": "assert all(abs(a-b)<1e-8 for a,b in zip(clip_grad([3,4],2.5),[1.5,2])) and len(clip_grad([3,4],2.5))==2"
+        },
+        {
+          "label": "Малая и нулевая нормы",
+          "assert": "assert clip_grad([0,0],1)==[0,0] and clip_grad([1],2)==[1]"
+        }
+      ],
+      "hint": "Масштабируйте все координаты одним множителем.",
+      "solution": "def clip_grad(grad, max_norm):\n    from math import sqrt\n    norm = sqrt(sum(g*g for g in grad))\n    factor = min(1., max_norm/norm) if norm else 1.\n    return [g*factor for g in grad]"
+    },
+    {
+      "type": "code",
+      "title": "Выбор лучшей эпохи",
+      "prompt": "По списку validation loss верните номер первой эпохи с минимумом. Нумерация начинается с 1. Для пустого списка верните None.",
+      "starter": "def best_epoch(val_losses):\n    pass\n",
+      "tests": [
+        {
+          "label": "Ничья",
+          "assert": "assert best_epoch([1.,0.5,0.6,0.5])==2"
+        },
+        {
+          "label": "Пусто",
+          "assert": "assert best_epoch([]) is None"
+        }
+      ],
+      "hint": "При равенстве двух минимумов нужен ранний checkpoint.",
+      "solution": "def best_epoch(val_losses):\n    return val_losses.index(min(val_losses)) + 1 if val_losses else None"
+    },
+    {
+      "type": "code",
+      "title": "Проверка конечности",
+      "prompt": "Верните список индексов значений, равных NaN или бесконечности. На входе вещественные числа.",
+      "starter": "def nonfinite_indices(values):\n    pass\n",
+      "tests": [
+        {
+          "label": "Три разных сбоя",
+          "assert": "assert nonfinite_indices([0,float(\"inf\"),1.,float(\"nan\"),-float(\"inf\")])==[1,3,4]"
+        },
+        {
+          "label": "Чистые числа",
+          "assert": "assert nonfinite_indices([0.,-1.,3.])==[]"
+        }
+      ],
+      "hint": "math.isfinite работает с обоими видами бесконечности и NaN.",
+      "solution": "def nonfinite_indices(values):\n    from math import isfinite\n    return [i for i,v in enumerate(values) if not isfinite(v)]"
+    },
+    {
+      "type": "code",
+      "title": "Вес редкого класса",
+      "prompt": "Для положительных counts верните веса n/(k*count), где n — сумма, k — число классов. Для пустого списка верните [].",
+      "starter": "def balanced_weights(counts):\n    pass\n",
+      "tests": [
+        {
+          "label": "Неравные классы",
+          "assert": "assert balanced_weights([2,6])==[2, 2/3]"
+        },
+        {
+          "label": "Пусто или поровну",
+          "assert": "assert balanced_weights([])==[] and balanced_weights([5,5])==[1,1]"
+        }
+      ],
+      "hint": "Меньшему числу объектов соответствует больший вес.",
+      "solution": "def balanced_weights(counts):\n    return [sum(counts)/(len(counts)*c) for c in counts]"
+    },
+    {
+      "type": "code",
+      "title": "Одна итерация обучения",
+      "prompt": "Одномерная линейная модель выдаёт w*x без смещения. Верните новый w после шага SGD для среднего квадрата ошибки по непустым x и y.",
+      "starter": "def train_step(w, x, y, lr):\n    pass\n",
+      "tests": [
+        {
+          "label": "Из нулевого веса",
+          "assert": "assert abs(train_step(0,[1,2],[2,4],0.1)-1)<1e-9"
+        },
+        {
+          "label": "Идеальная модель",
+          "assert": "assert train_step(2,[1,2],[2,4],0.3)==2"
+        }
+      ],
+      "hint": "Производная по w включает множитель x для каждого примера.",
+      "solution": "def train_step(w, x, y, lr):\n    gradient = sum(2*(w*a-b)*a for a,b in zip(x,y)) / len(x)\n    return w - lr*gradient"
+    },
+    {
+      "prompt": "Для B примеров и C взаимоисключающих классов применяют CrossEntropyLoss с индексами классов. Как подготовить входы?",
+      "options": [
+        "Вектор индексов (B,) вместо логитов и матрицу признаков",
+        "Два скаляра на весь набор",
+        "Логиты (B, C) и целые индексы (B,)"
+      ],
+      "answer": 2,
+      "explanation": "CrossEntropyLoss принимает ненормированные логиты и индекс правильного класса для каждого объекта.",
+      "type": "choice",
+      "title": "Формат классов"
+    },
+    {
+      "prompt": "Градиент при каждом независимом мини-батче оказывается всё больше. Какая строка может отсутствовать?",
+      "options": [
+        "net.eval() перед каждым backward",
+        "optimizer.zero_grad() перед backward текущего шага",
+        "optimizer.state_dict() после каждого print"
+      ],
+      "answer": 1,
+      "explanation": "В PyTorch градиенты накапливаются, поэтому обычный шаг начинается с очистки.",
+      "type": "choice",
+      "title": "Забыли обнуление"
+    },
+    {
+      "prompt": "Модель с Dropout даёт разные ответы на одинаковый вход при no_grad(). Что добавить перед прогнозом?",
+      "options": [
+        "net.eval()",
+        "optimizer.step()",
+        "Случайное перемешивание признаков"
+      ],
+      "answer": 0,
+      "explanation": "no_grad отключает вычисление градиентов. Режим eval меняет поведение Dropout.",
+      "type": "choice",
+      "title": "Случайный инференс"
+    },
+    {
+      "prompt": "Вход лежит на CPU, а модель на CUDA. Как подготовить инференс?",
+      "options": [
+        "Поменять названия признаков",
+        "Увеличить число классов",
+        "Перенести вход на то же устройство, что и параметры"
+      ],
+      "answer": 2,
+      "explanation": "Операции между параметрами и входом требуют совместимого размещения.",
+      "type": "choice",
+      "title": "Устройства не совпали"
+    },
+    {
+      "prompt": "Нужно продолжить то же обучение после остановки. Какое состояние важно в дополнение к весам?",
+      "options": [
+        "Только размер README",
+        "Состояние оптимизатора, эпоха и применявшийся scheduler",
+        "Только имена выходных классов"
+      ],
+      "answer": 1,
+      "explanation": "Adam хранит оценки моментов для каждого параметра, а scheduler — стадию расписания.",
+      "type": "choice",
+      "title": "Продолжение Adam"
+    },
+    {
+      "prompt": "На каждом шаге выполняется history.append(loss), использование памяти растёт. Что хранить для графика?",
+      "options": [
+        "loss.item() или отделённое от графа значение",
+        "Весь вычислительный граф на каждой итерации",
+        "Копию всех параметров в каждом логе"
+      ],
+      "answer": 0,
+      "explanation": "Для графика требуется числовое значение. Ссылка на тензор может удерживать граф.",
+      "type": "choice",
+      "title": "Утечка памяти в логах"
+    },
+    {
+      "prompt": "На каком этапе обычно ограничивают уже вычисленный градиент?",
+      "options": [
+        "После удаления параметров",
+        "До вычисления потерь",
+        "После backward и до optimizer.step"
+      ],
+      "answer": 2,
+      "explanation": "Clipping меняет градиенты, которые будет использовать следующий шаг.",
+      "type": "choice",
+      "title": "Когда делать clipping"
+    },
+    {
+      "prompt": "Сервис получил иные оценки при загрузке только обучаемых весов вручную. Что ещё несёт state_dict модели?",
+      "options": [
+        "Всю историю HTTP-вызовов",
+        "Зарегистрированные постоянные буферы, например бегущие статистики BatchNorm",
+        "Изменяемые списки любого Python-класса"
+      ],
+      "answer": 1,
+      "explanation": "Буферы модуля могут влиять на инференс наряду с параметрами.",
+      "type": "choice",
+      "title": "Перенос состояния BatchNorm"
+    },
+    {
+      "prompt": "Обучение завершается OOM на первом большом батче. Как поставить минимальный диагностический опыт?",
+      "options": [
+        "Уменьшить размер батча и измерить пиковую память",
+        "Удвоить число эпох без измерений",
+        "Считать, что OOM означает плохую accuracy"
+      ],
+      "answer": 0,
+      "explanation": "Размер батча влияет на объём активаций. Измерение проверяет гипотезу.",
+      "type": "choice",
+      "title": "Память батча"
+    },
+    {
+      "prompt": "Для ранней остановки нужен сигнал, отражающий обобщение. Как его получить?",
+      "options": [
+        "Обучать веса на test после каждой эпохи",
+        "Выбирать эпоху по длине лога",
+        "Вычислять метрику на validation с фиксированным протоколом"
+      ],
+      "answer": 2,
+      "explanation": "Параметры выбирают по validation, оставляя независимый test для финальной оценки.",
+      "type": "choice",
+      "title": "Остановить обучение"
+    }
+  ],
+  "quiz": [
+    {
+      "prompt": "Что делает loss.backward() в стандартном обучающем шаге?",
+      "options": [
+        "Вычисляет и накапливает градиенты для параметров",
+        "Сохраняет модель в файл",
+        "Перемещает модель на GPU"
+      ],
+      "answer": 0,
+      "explanation": "Численное изменение весов выполняет optimizer.step()."
+    },
+    {
+      "prompt": "Какая память нужна для хранения 100 значений float32 без учёта служебных структур?",
+      "options": [
+        "100 байт",
+        "3200 байт",
+        "400 байт"
+      ],
+      "answer": 2,
+      "explanation": "Одно значение float32 занимает четыре байта."
+    },
+    {
+      "prompt": "Что следует назвать примером в TensorDataset(X, y)?",
+      "options": [
+        "Одна эпоха",
+        "Один элемент X вместе с соответствующей целью y",
+        "Один файл весов"
+      ],
+      "answer": 1,
+      "explanation": "Индекс датасета выбирает согласованные значения из тензоров."
+    },
+    {
+      "prompt": "Как исключить обновление весов конкретного слоя через autograd при дообучении?",
+      "options": [
+        "Отключить requires_grad для его параметров и согласовать оптимизатор",
+        "Увеличить batch size",
+        "Включить shuffle"
+      ],
+      "answer": 0,
+      "explanation": "Замороженные параметры не должны получать обновлений, а замороженные буферы требуют отдельного контроля режима."
+    },
+    {
+      "prompt": "Почему оценку точности считают по всем объектам validation?",
+      "options": [
+        "Так число классов уменьшается",
+        "Так тип меток меняется автоматически",
+        "Отдельный батч может плохо представлять распределение"
+      ],
+      "answer": 2,
+      "explanation": "Накопите число правильных предсказаний и поделите на число фактически оценённых объектов."
+    }
+  ]
+}
