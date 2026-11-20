@@ -13,6 +13,7 @@ const button=(label,action,icon,cls='btn')=>'<button class="'+cls+'" type="butto
 const link=(text,href,cls='btn',symbol='')=>'<a class="'+cls+'" href="'+href+'">'+(symbol?I(symbol,17):'')+text+'</a>';
 const badge=(text,style='')=>'<span class="tag '+style+'">'+E(text)+'</span>';
 const nTasks=modules.reduce((n,m)=>n+m.count,0);
+const unitName=(item,index)=>item.title||('Вопрос '+(index+1));
 const fmt=n=>String(n).padStart(2,'0');
 function unitKeys(m){
   return [...packs[m].lessons.map((_,i)=>codeId(m,'l',i)),...packs[m].tasks.map((_,i)=>codeId(m,'t',i)),m+'-quiz'];
